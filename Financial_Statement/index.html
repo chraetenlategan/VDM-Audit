@@ -764,8 +764,12 @@
         </label>
       </div>
       <div class="conditional field-group" id="compilation-insolvent-box">
-        <label>Insolvency Note</label>
-        <textarea id="compilationInsolventText" rows="3" placeholder="Describe the technical insolvency or going concern matter…" oninput="liveUpdate()"></textarea>
+        <label>Accumulated Loss (R)</label>
+        <input type="text" id="insolventAccLoss" placeholder="e.g. 6993" oninput="liveUpdate()">
+        <label style="margin-top:10px;">Total Liabilities Exceed Assets By (R)</label>
+        <input type="text" id="insolventExcessLiab" placeholder="e.g. 6993" oninput="liveUpdate()">
+        <label style="margin-top:10px;">Additional Insolvency Note (optional)</label>
+        <textarea id="compilationInsolventText" rows="2" placeholder="Any additional details to include…" oninput="liveUpdate()"></textarea>
       </div>
       <div class="conditional field-group" id="compilation-other-box">
         <label>Other Matter</label>
@@ -1866,11 +1870,14 @@ function generateDoc() {
   // Build the Alert to Reader section for insolvent compilation
   let compilationAlertSection = '';
   if (reportSubState.reportType === 'compilation' && reportSubState.subType === 'insolvent') {
-    const insolventNote = reportSubState.insolventText || '[Describe the technical insolvency or going concern matter]';
+    const accLoss = formatNumber(getVal('insolventAccLoss')) || '[ACCUMULATED LOSS]';
+    const excessLiab = formatNumber(getVal('insolventExcessLiab')) || '[EXCESS LIABILITIES]';
+    const additionalNote = reportSubState.insolventText || '';
     compilationAlertSection = `
     <h3>Alert to Reader</h3>
     <p>We draw attention to the accounting policy in the financial statement that describes the financial reporting framework used in the preparation and presentation of these financial statements. The financial statements was compiled on an accounting basis with a policy applicable on the matter of going concern. It is based on the fact that funds will be available to finance future operations and that the realisation of assets and the settling of debts, unsecure responsibilities and secure responsibilities will take place in the normal circumstances of business.</p>
-    <p>${insolventNote}</p>`;
+    <p>Please note that on ${yearEnd}, the company had an accumulated loss of R&nbsp;${accLoss} and that its total liabilities exceeded its assets with R&nbsp;${excessLiab}. Due to the accounting policy recorded in the financial statements, the entity will therefore be classified as factually insolvent.</p>
+    ${additionalNote ? `<p>${additionalNote}</p>` : ''}`;
   }
 
   // Build the Other Matter section for compilation
