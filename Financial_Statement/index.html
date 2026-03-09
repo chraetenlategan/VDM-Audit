@@ -653,6 +653,16 @@
         <span class="ec-label">Body Corporate</span>
         <span class="ec-sub">Sectional Title — Trustees</span>
       </div>
+      <div class="entity-card" id="ec-church" onclick="selectEntity(this,'church')">
+        <span class="ec-icon">⛪</span>
+        <span class="ec-label">Church</span>
+        <span class="ec-sub">Church Council Members</span>
+      </div>
+      <div class="entity-card" id="ec-club" onclick="selectEntity(this,'club')">
+        <span class="ec-icon">🏅</span>
+        <span class="ec-label">Club</span>
+        <span class="ec-sub">Committee Members</span>
+      </div>
     </div>
 
     <hr class="form-divider">
@@ -1384,7 +1394,7 @@ const ENTITY_CONFIG = {
     singularTerm: 'Member',
     reportTo:     'Members',
     addBtnLabel:  '+ Add Council Member',
-    allowedReports: ['compilation', 'review', 'audit']
+    allowedReports: ['audit']
   },
   school: {
     nameLabel:    'School Name (as it appears on documents)',
@@ -1408,7 +1418,7 @@ const ENTITY_CONFIG = {
     singularTerm: 'Member',
     reportTo:     'Members',
     addBtnLabel:  '+ Add Committee Member',
-    allowedReports: ['compilation', 'review', 'audit']
+    allowedReports: ['audit']
   },
   bc: {
     nameLabel:    'Body Corporate Name (as it appears on documents)',
@@ -2304,6 +2314,12 @@ function generateDoc() {
     }
   } else if (entityType === 'school') {
     // School: Cover + Responsibilities + Auditor's Report + Directors' Report + Policies
+    assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
+  } else if (entityType === 'church') {
+    // Church: Cover + Responsibilities + Auditor's Report + Report + Policies
+    assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
+  } else if (entityType === 'club') {
+    // Club: Cover + Responsibilities + Auditor's Report + Report + Policies
     assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
   } else if (entityType === 'bc') {
     // Body Corporate: Cover + Members' Responsibility + Auditor's Report + Members' Report + Policies
