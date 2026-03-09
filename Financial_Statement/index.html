@@ -1861,6 +1861,27 @@ function generateDoc() {
   </div>`;
 
   // ── PAGE 3: COMPILATION REPORT ──
+  const reportSubState = getReportSubState();
+
+  // Build the Alert to Reader section for insolvent compilation
+  let compilationAlertSection = '';
+  if (reportSubState.reportType === 'compilation' && reportSubState.subType === 'insolvent') {
+    const insolventNote = reportSubState.insolventText || '[Describe the technical insolvency or going concern matter]';
+    compilationAlertSection = `
+    <h3>Alert to Reader</h3>
+    <p>We draw attention to the accounting policy in the financial statement that describes the financial reporting framework used in the preparation and presentation of these financial statements. The financial statements was compiled on an accounting basis with a policy applicable on the matter of going concern. It is based on the fact that funds will be available to finance future operations and that the realisation of assets and the settling of debts, unsecure responsibilities and secure responsibilities will take place in the normal circumstances of business.</p>
+    <p>${insolventNote}</p>`;
+  }
+
+  // Build the Other Matter section for compilation
+  let compilationOtherSection = '';
+  if (reportSubState.reportType === 'compilation' && reportSubState.subType === 'other') {
+    const otherNote = reportSubState.otherText || '[Describe the other matter to include]';
+    compilationOtherSection = `
+    <h3>Other Matter</h3>
+    <p>${otherNote}</p>`;
+  }
+
   const page3 = `
   <div class="doc-page">
     <div class="page-header">
@@ -1877,6 +1898,8 @@ function generateDoc() {
     <h3>Independent Compiler's Responsibility</h3>
     <p>We performed this compilation engagement in accordance with <em>International Standard on Related Services 4410 (Revised), Compilation Engagements.</em> This Standard requires that we comply with quality control standards and relevant ethical requirements, including ethical principles of integrity, objectivity, professional competence and due care.</p>
     <p>A compilation engagement involves applying expertise in accounting and financial reporting to assist management in preparing and presenting financial information. A compilation engagement does not involve gathering evidence for the purpose of expressing an opinion or a review conclusion. Accordingly, we do not express an audit opinion or a review conclusion on these financial statements.</p>
+    ${compilationAlertSection}
+    ${compilationOtherSection}
     ${compilerBlock(compilerSigner, dateSigned)}
     <div class="page-number">${pg3}</div>
   </div>`;
