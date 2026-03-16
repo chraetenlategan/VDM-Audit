@@ -755,6 +755,34 @@
       </div>
     </div>
 
+    <!-- ── SCHOOL AUDIT sub-options ── -->
+    <div id="report-sub-audit-school" class="report-sub-panel" style="display:none;">
+      <div class="report-sub-heading">Audit Opinion</div>
+      <div class="options-group">
+        <label class="option-pill">
+          <input type="radio" name="schoolAuditType" value="unqualified" checked onchange="onSchoolAuditTypeChange()"> Unqualified
+        </label>
+        <label class="option-pill">
+          <input type="radio" name="schoolAuditType" value="qualified" onchange="onSchoolAuditTypeChange()"> Qualified
+        </label>
+        <label class="option-pill">
+          <input type="radio" name="schoolAuditType" value="disclaimer" onchange="onSchoolAuditTypeChange()"> Disclaimer of Opinion
+        </label>
+      </div>
+      <div class="conditional field-group" id="school-audit-qualified-box">
+        <label>Basis for Qualified Opinion</label>
+        <textarea id="schoolAuditQualifiedText" rows="4" placeholder="Describe the basis for the qualified opinion…" oninput="liveUpdate()"></textarea>
+      </div>
+      <div class="conditional field-group visible" id="school-audit-other-box">
+        <label>Other Matter <span style="font-weight:400;color:#9090b0;font-size:11px;">(optional)</span></label>
+        <textarea id="schoolAuditOtherText" rows="3" placeholder="Describe any other matter to include (leave blank to omit)…" oninput="liveUpdate()"></textarea>
+      </div>
+      <div class="conditional field-group" id="school-audit-disclaimer-box">
+        <label>Basis for Disclaimer of Opinion</label>
+        <textarea id="schoolAuditDisclaimerText" rows="5" placeholder="List the matters that led to the disclaimer (e.g. 1. Fraudulent claims of R…&#10;2. Cash shortage of R…)" oninput="liveUpdate()"></textarea>
+      </div>
+    </div>
+
     <!-- ── REVIEW sub-options ── -->
     <div id="report-sub-review" class="report-sub-panel" style="display:none;">
       <div class="report-sub-heading">Review Conclusion</div>
@@ -1494,9 +1522,11 @@ function updateEntityType() {
 // ── REPORT TYPE + SUBTYPE LOGIC ──────────────────────────────────────────────
 function onReportTypeChange() {
   const type = getRadio('reportType');
-  document.getElementById('report-sub-audit').style.display       = (type === 'audit')       ? 'block' : 'none';
-  document.getElementById('report-sub-review').style.display      = (type === 'review')      ? 'block' : 'none';
-  document.getElementById('report-sub-compilation').style.display = (type === 'compilation') ? 'block' : 'none';
+  const isSchool = currentEntityType === 'school';
+  document.getElementById('report-sub-audit').style.display        = (type === 'audit' && !isSchool) ? 'block' : 'none';
+  document.getElementById('report-sub-audit-school').style.display = (type === 'audit' && isSchool)  ? 'block' : 'none';
+  document.getElementById('report-sub-review').style.display       = (type === 'review')             ? 'block' : 'none';
+  document.getElementById('report-sub-compilation').style.display  = (type === 'compilation')        ? 'block' : 'none';
   liveUpdate();
 }
 
@@ -1506,6 +1536,16 @@ function onAuditTypeChange() {
   toggleVisible('audit-emphasis-box',   t === 'emphasis');
   toggleVisible('audit-disclaimer-box', t === 'disclaimer');
   toggleVisible('audit-other-box',      t === 'other');
+  liveUpdate();
+}
+
+function onSchoolAuditTypeChange() {
+  const t = getRadio('schoolAuditType');
+  toggleVisible('school-audit-qualified-box',  t === 'qualified');
+  // Other Matter appears for both Unqualified and Qualified, hidden for Disclaimer
+  const otherBox = document.getElementById('school-audit-other-box');
+  if (otherBox) otherBox.classList.toggle('visible', t === 'unqualified' || t === 'qualified');
+  toggleVisible('school-audit-disclaimer-box', t === 'disclaimer');
   liveUpdate();
 }
 
@@ -1539,6 +1579,18 @@ function toggleVisible(id, show) {
 function getReportSubState() {
   const type = getRadio('reportType');
   if (type === 'audit') {
+    // School uses a separate set of sub-options
+    if (currentEntityType === 'school') {
+      const sub = getRadio('schoolAuditType');
+      return {
+        reportType:    'audit',
+        entityType:    'school',
+        subType:       sub,
+        qualifiedText: document.getElementById('schoolAuditQualifiedText')?.value.trim()  || '',
+        otherText:     document.getElementById('schoolAuditOtherText')?.value.trim()      || '',
+        disclaimerText:document.getElementById('schoolAuditDisclaimerText')?.value.trim() || '',
+      };
+    }
     const sub = getRadio('auditType');
     return {
       reportType: 'audit',
@@ -2298,6 +2350,113 @@ function generateDoc() {
     <div class="page-number">${pg4}</div>
   </div>`;
 
+  // ── PAGE 3c: SCHOOL INDEPENDENT AUDITOR'S REPORT ──
+  const schoolSubState = (entityType === 'school') ? getReportSubState() : {};
+  const schoolSub = schoolSubState.subType || 'unqualified';
+
+  function auditorBlock(signer, date) {
+    return `<div class="compiler-block">
+      <p>${signer}</p>
+      <p>REGISTERED AUDITOR (SA)</p>
+      <p>STANDERTON</p>
+      <p>${date}</p>
+    </div>`;
+  }
+
+  // Governing body responsibility + auditor responsibility paragraphs (shared across variants)
+  const schoolGoverningBodyResponsibilities = `
+    <h3>Responsibilities of the Governing Body for the Financial Statements</h3>
+    <p>The school's governing body is responsible for the preparation and fair presentation of the financial statements in accordance with the <em>'Financial Reporting Guidelines for Schools'</em> and the requirements of the South African Schools Act, and for such internal control as the governing body determines is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error.</p>`;
+
+  const schoolAuditorResponsibilities = `
+    <h3>Auditor's Responsibilities for the Audit of the Financial Statements</h3>
+    <p>Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditor's report that includes our opinion. Reasonable assurance is a high level of assurance, but is not a guarantee that an audit conducted in accordance with <em>'International Standards on Auditing (ISAs)'</em> will always detect a material misstatement when it exists. Misstatements can arise from fraud or error and are considered material if, individually or in the aggregate, they could reasonably be expected to influence the economic decisions of users taken on the basis of these financial statements.</p>
+    <p>As part of an audit in accordance with <em>'International Standards on Auditing (ISAs)'</em>, we exercise professional judgement and maintain professional scepticism throughout the audit. We also:</p>
+    <ul>
+      <li>Identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, design and perform audit procedures responsive to those risks, and obtain audit evidence that is sufficient and appropriate to provide a basis for our opinion. The risk of not detecting a material misstatement resulting from fraud is higher than for one resulting from error, as fraud may involve collusion, forgery, intentional omissions, misrepresentations, or the override of internal control.</li>
+      <li>Obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the school's internal control.</li>
+      <li>Evaluate the appropriateness of accounting policies used and the reasonableness of accounting estimates and related disclosures made by the governing body.</li>
+      <li>Evaluate the overall presentation, structure and content of the financial statements, including the disclosures, and whether the financial statements represent the underlying transactions and events in a manner that achieves fair presentation.</li>
+    </ul>
+    <p>We communicate with the governing body regarding, among other matters, the planned scope and timing of the audit and significant audit findings, including any significant deficiencies in internal control that we identify during our audit.</p>`;
+
+  let pageSchoolAudit = '';
+  if (schoolSub === 'unqualified') {
+    const otherMatter = schoolSubState.otherText
+      ? `<h3>Other Matter</h3><p>${schoolSubState.otherText}</p>`
+      : '';
+    pageSchoolAudit = `
+  <div class="doc-page">
+    <div class="page-header">
+      <div class="co-name">${coUpper}</div>
+    </div>
+    <h2>Independent Auditor's Report</h2>
+    <p><em>To the Governing Body of ${co}</em></p>
+    <h3>Opinion</h3>
+    <p>We have audited the financial statements of ${co}, which comprise the statement of financial position as at ${yearEnd}, and the statement of financial performance, including a summary of significant accounting policies and other explanatory notes, as set out on pages ${pageStart} to ${pageEnd}.</p>
+    <p>In our opinion, the financial statements present fairly, in all material respects, the financial position of ${co} as at ${yearEnd}, and its financial performance and cash flows for the year then ended in accordance with the <em>'Financial Reporting Frameworks for Schools (FRFFS)'</em> and the requirements of the South African Schools Act.</p>
+    ${otherMatter}
+    <h3>Basis for Opinion</h3>
+    <p>We conducted our audit in accordance with <em>'International Standards on Auditing (ISAs)'</em>. Our responsibilities under those standards are further described in the <em>'Auditor's Responsibilities for the Audit of the Financial Statements'</em> section of our report. We are independent of the school in accordance with the <em>'Independent Regulatory Board for Auditors Code of Professional Conduct for Registered Auditors (IRBA Code)'</em> and other independence requirements applicable to performing audits of financial statements in South Africa. We have fulfilled our other ethical responsibilities in accordance with the <em>'IRBA Code'</em> and in accordance with other ethical requirements applicable to performing audits in South Africa. The <em>'IRBA Code'</em> is consistent with the <em>'International Ethics Standards Board for Accountants Code of Ethics for Professional Accountants (Parts A and B)'</em>. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our opinion.</p>
+    ${schoolGoverningBodyResponsibilities}
+    ${schoolAuditorResponsibilities}
+    ${auditorBlock(compilerSigner, dateSigned)}
+    <div class="page-number">${pg3}</div>
+  </div>`;
+
+  } else if (schoolSub === 'qualified') {
+    const qualifiedBasis = schoolSubState.qualifiedText
+      ? schoolSubState.qualifiedText
+      : '[Describe the basis for the qualified opinion]';
+    const otherMatter = schoolSubState.otherText
+      ? `<h3>Other Matter</h3><p>${schoolSubState.otherText}</p>`
+      : '';
+    pageSchoolAudit = `
+  <div class="doc-page">
+    <div class="page-header">
+      <div class="co-name">${coUpper}</div>
+    </div>
+    <h2>Independent Auditor's Report</h2>
+    <p><em>To the Governing Body of ${co}</em></p>
+    <h3>Qualified Opinion</h3>
+    <p>We have audited the financial statements of ${co}, which comprise the statement of financial position as at ${yearEnd}, and the statement of financial performance, including a summary of significant accounting policies and other explanatory notes, as set out on pages ${pageStart} to ${pageEnd}.</p>
+    <p>In our opinion, except for the matter described in the Basis for Qualified Opinion paragraph, the financial statements present fairly, in all material respects, the financial position of ${co} as at ${yearEnd}, and its financial performance and cash flows for the year then ended in accordance with the <em>'Financial Reporting Frameworks for Schools (FRFFS)'</em> and the requirements of the South African Schools Act.</p>
+    <h3>Basis for Qualified Opinion</h3>
+    <p>${qualifiedBasis}</p>
+    ${otherMatter}
+    <h3>Basis for Opinion</h3>
+    <p>We conducted our audit in accordance with <em>'International Standards on Auditing (ISAs)'</em>. Our responsibilities under those standards are further described in the <em>'Auditor's Responsibilities for the Audit of the Financial Statements'</em> section of our report. We are independent of the school in accordance with the <em>'Independent Regulatory Board for Auditors Code of Professional Conduct for Registered Auditors (IRBA Code)'</em> and other independence requirements applicable to performing audits of financial statements in South Africa. We have fulfilled our other ethical responsibilities in accordance with the <em>'IRBA Code'</em> and in accordance with other ethical requirements applicable to performing audits in South Africa. The <em>'IRBA Code'</em> is consistent with the <em>'International Ethics Standards Board for Accountants Code of Ethics for Professional Accountants (Parts A and B)'</em>. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our qualified opinion.</p>
+    ${schoolGoverningBodyResponsibilities}
+    ${schoolAuditorResponsibilities}
+    ${auditorBlock(compilerSigner, dateSigned)}
+    <div class="page-number">${pg3}</div>
+  </div>`;
+
+  } else if (schoolSub === 'disclaimer') {
+    const disclaimerBasis = schoolSubState.disclaimerText
+      ? schoolSubState.disclaimerText
+      : '[Describe the basis for the disclaimer of opinion]';
+    pageSchoolAudit = `
+  <div class="doc-page">
+    <div class="page-header">
+      <div class="co-name">${coUpper}</div>
+    </div>
+    <h2>Independent Auditor's Report</h2>
+    <p><em>To the Governing Body of ${co}</em></p>
+    <h3>Disclaimer of Opinion</h3>
+    <p>We have audited the financial statements of ${co}, which comprise the statement of financial position as at ${yearEnd}, and the statement of financial performance, including a summary of significant accounting policies and other explanatory notes, as set out on pages ${pageStart} to ${pageEnd}.</p>
+    <p>We do not express an opinion on the financial statements of ${co}. Because of the significance of the matter described in the Basis for Disclaimer of Opinion section of our report, we have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</p>
+    <h3>Basis for Disclaimer of Opinion</h3>
+    <p>We conducted our audit in accordance with <em>'International Standards on Auditing (ISAs)'</em>. Our responsibilities under those standards are further described in the <em>'Auditor's Responsibilities for the Audit of the Financial Statements'</em> section of our report. We are independent of the school in accordance with the <em>'Independent Regulatory Board for Auditors Code of Professional Conduct for Registered Auditors (IRBA Code)'</em> and other independence requirements applicable to performing audits of financial statements in South Africa. We have fulfilled our other ethical responsibilities in accordance with the <em>'IRBA Code'</em> and in accordance with other ethical requirements applicable to performing audits in South Africa. The <em>'IRBA Code'</em> is consistent with the <em>'International Ethics Standards Board for Accountants Code of Ethics for Professional Accountants (Parts A and B)'</em>.</p>
+    <p>Please note that for the year ending ${yearEnd}, the following came to our attention:</p>
+    <p style="white-space:pre-line;">${disclaimerBasis}</p>
+    ${schoolGoverningBodyResponsibilities}
+    ${schoolAuditorResponsibilities}
+    ${auditorBlock(compilerSigner, dateSigned)}
+    <div class="page-number">${pg3}</div>
+  </div>`;
+  }
+
   // ── CONDITIONAL PAGE ASSEMBLY ──
   const reportType = getRadio('reportType');
   let assembledPages = '';
@@ -2313,8 +2472,8 @@ function generateDoc() {
       assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
     }
   } else if (entityType === 'school') {
-    // School: Cover + Responsibilities + Auditor's Report + Directors' Report + Policies
-    assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
+    // School: Cover + Responsibilities + School Auditor's Report + Directors' Report + Policies
+    assembledPages = coverPage + page2 + pageSchoolAudit + page4 + policyPages;
   } else if (entityType === 'church') {
     // Church: Cover + Responsibilities + Auditor's Report + Report + Policies
     assembledPages = coverPage + page2 + pageAudit + page4 + policyPages;
