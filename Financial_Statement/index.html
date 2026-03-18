@@ -1303,6 +1303,103 @@
 
     </div>
 
+    <!-- ── TRUST specific fields (Minutes) ── -->
+    <div id="step6-trust-divider" style="display:none;"><hr class="form-divider"></div>
+    <div id="step6-trust-block" style="display:none;">
+      <div class="step-label">Step 6</div>
+      <div class="section-title">Trust — Minutes of Annual General Meeting</div>
+
+      <div class="field-group">
+        <label>Meeting Venue</label>
+        <input type="text" id="trustAGMVenue" placeholder="e.g. 17 Church Street, Standerton" oninput="liveUpdate()">
+        <p class="hint">Used in "held at _____ on [date]".</p>
+      </div>
+
+      <div class="field-group">
+        <label>Meeting Date</label>
+        <input type="text" id="trustAGMDate" placeholder="e.g. 1 March 2025" oninput="liveUpdate()">
+      </div>
+
+      <div class="field-group">
+        <label>Bank Account</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustBankAcct" value="has" checked onchange="liveUpdate()"> Trust has a bank account
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustBankAcct" value="none" onchange="liveUpdate()"> No bank account (unnecessary costs)
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Tax Registration</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustTax" value="registered" checked onchange="liveUpdate()"> Trust is registered for tax
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustTax" value="none" onchange="liveUpdate()"> Never registered — no taxable income after distributions
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Distributions to Beneficiaries</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustDistributions" value="yes" checked onchange="liveUpdate()"> All distributions approved by trustees (loan accounts)
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustDistributions" value="no" onchange="liveUpdate()"> No distributions during this financial year
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Donations Received</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustDonations" value="no" checked onchange="liveUpdate()"> No donations received
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustDonations" value="yes" onchange="liveUpdate()"> Donations were received
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Trustees' Remuneration</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustRemuneration" value="approved" onchange="liveUpdate()"> Approved as shown in financial statements
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustRemuneration" value="none" checked onchange="liveUpdate()"> No remuneration this financial year
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Trust Deed &amp; Letter of Authority Changes</label>
+        <div class="options-group">
+          <label class="option-pill">
+            <input type="radio" name="trustDeedChanges" value="none" checked onchange="onTrustDeedChange()"> No changes
+          </label>
+          <label class="option-pill">
+            <input type="radio" name="trustDeedChanges" value="custom" onchange="onTrustDeedChange()"> Changes were made — describe
+          </label>
+        </div>
+        <div class="conditional field-group" id="trust-deed-box" style="margin-top:8px;">
+          <label>Trust Deed Changes</label>
+          <textarea id="trustDeedText" rows="2" placeholder="Describe Trust Deed changes…" oninput="liveUpdate()"></textarea>
+          <label style="margin-top:8px;">Letter of Authority Changes</label>
+          <textarea id="trustLoaText" rows="2" placeholder="Describe Letter of Authority changes…" oninput="liveUpdate()"></textarea>
+        </div>
+      </div>
+
+    </div>
+
 
     <!-- Church policies toggle -->
     <div id="church-policies-divider" style="display:none;"><hr class="form-divider"></div>
@@ -1811,8 +1908,8 @@ function selectEntity(el, type) {
 
   onReportTypeChange();
 
-  // Hide Step 6 (Specific Matters) for School and NPO — not applicable
-  const hideStep6 = (type === 'school' || type === 'npo' || type === 'bc' || type === 'club' || type === 'church');
+  // Hide Step 6 (Specific Matters) for School, NPO, BC, Club, Church, Trust — not applicable
+  const hideStep6 = (type === 'school' || type === 'npo' || type === 'bc' || type === 'club' || type === 'church' || type === 'trust');
   document.getElementById('step6-block').style.display   = hideStep6 ? 'none' : '';
   document.getElementById('step6-divider').style.display = hideStep6 ? 'none' : '';
 
@@ -1820,6 +1917,11 @@ function selectEntity(el, type) {
   const isBc = (type === 'bc');
   document.getElementById('step6-bc-block').style.display   = isBc ? 'block' : 'none';
   document.getElementById('step6-bc-divider').style.display = isBc ? 'block' : 'none';
+
+  // Show Trust-specific Step 6 (Minutes) only for Trust
+  const isTrust = (type === 'trust');
+  document.getElementById('step6-trust-block').style.display   = isTrust ? 'block' : 'none';
+  document.getElementById('step6-trust-divider').style.display = isTrust ? 'block' : 'none';
 
   // Show church policies toggle only for Church
   const isChurch = (type === 'church');
@@ -1918,6 +2020,12 @@ function onBcEventsChange() {
 function onBcMgmtRulesChange() {
   const v = getRadio('bcMgmtRules');
   toggleVisible('bc-mgmt-rules-box', v === 'custom');
+  liveUpdate();
+}
+
+function onTrustDeedChange() {
+  const v = getRadio('trustDeedChanges');
+  toggleVisible('trust-deed-box', v === 'custom');
   liveUpdate();
 }
 
@@ -3123,11 +3231,90 @@ function generateDoc() {
   const needsEngagementLetter = (reportType === 'audit') && (getRadio('engagementLetter') === 'yes');
   const engagementLetterPage  = needsEngagementLetter ? buildEngagementLetter() : '';
 
+  // ── TRUST MINUTES PAGE ──
+  let pageTrustMinutes = '';
+  if (entityType === 'trust') {
+    const agmVenue = getVal('trustAGMVenue') || '[VENUE]';
+    const agmDate  = getVal('trustAGMDate')  || '[DATE]';
+    const bankAcct = getRadio('trustBankAcct');
+    const taxReg   = getRadio('trustTax');
+    const distrib  = getRadio('trustDistributions');
+    const donations = getRadio('trustDonations');
+    const remun    = getRadio('trustRemuneration');
+    const deedChg  = getRadio('trustDeedChanges');
+    const deedText = getVal('trustDeedText') || '[DESCRIBE CHANGES]';
+    const loaText  = getVal('trustLoaText')  || '[DESCRIBE CHANGES]';
+
+    const bankPara = bankAcct === 'none'
+      ? `<p class="underline-heading">BANK ACCOUNT</p>
+         <p>A Bank account was opened at the establishment of the trust. The trustees, on behalf of the trust, decided that the bank account was unnecessary and stated that there is no bank account at this moment, due to the unnecessary costs.</p>`
+      : '';
+
+    const taxPara = taxReg === 'none'
+      ? `<p>The trust had no taxable income after distributions to beneficiaries and was therefore never registered for tax.</p>`
+      : '';
+
+    const distribPara = distrib === 'yes'
+      ? `<p>All income and/or capital distributions made to beneficiaries during the financial year were approved by the trustees. It is explicitly confirmed that the distributions to beneficiaries will not be compensated for by the physical cash flow, but rather by way of their loan accounts.</p>`
+      : '';
+
+    const donationsPara = donations === 'yes'
+      ? `<p class="underline-heading">DONATIONS RECEIVED</p>
+         <p>The trustees are grateful to all the donors for donations that were received during the financial year.</p>`
+      : '';
+
+    const remunPara = remun === 'approved'
+      ? `<p>All trustees' remuneration, as shown in the Statement of Profit or Loss and Other Comprehensive Income, were approved.</p>`
+      : `<p>It was decided that there will be no trustees' remuneration for this financial year.</p>`;
+
+    const deedPara = deedChg === 'none'
+      ? `<p>No major changes were made in the structure of the Trust Deed. No amendments were made to the Letter of Authority.</p>`
+      : `<p>The following changes were made in the structure of the Trust Deed:</p>
+         <p>${deedText}</p>
+         <p>These amendments were made to the Letter of Authority:</p>
+         <p>${loaText}</p>`;
+
+    pageTrustMinutes = `
+  <div class="doc-page">
+    ${auditLetterhead()}
+    <div class="page-header">
+      <div class="co-name">${coUpper}</div>
+      <div class="co-reg">(${reg})</div>
+    </div>
+    <h2>Minutes of the Annual General Meeting of Trustees</h2>
+    <p style="text-align:center;font-style:italic;">held at ${agmVenue} on ${agmDate}.</p>
+    <br>
+    <p class="underline-heading">PRESENT</p>
+    <p>${dirList}</p>
+    <p class="underline-heading">NOTICE</p>
+    <p>The notice of the meeting was hereby regarded as read and, as a quorum, is present, the chairman declared the meeting as properly constituted.</p>
+    <p class="underline-heading">PREVIOUS MEETING</p>
+    <p>The minutes of the last meeting of the trustees were read, approved and signed.</p>
+    ${bankPara}
+    <p class="underline-heading">FINANCIAL STATEMENTS</p>
+    <p>The annual financial statements for the year ended ${yearEnd}, together with the accounting officer's report, was presented. The trustees hereby condone all the transactions and consolidation of loan accounts reflected on the financial statements for the past year.</p>
+    ${taxPara}
+    ${distribPara}
+    <p class="underline-heading">ACCOUNTANTS</p>
+    <p>The accountant's remuneration for the past financial year, if applicable was determined as the amount set out in the financial statements. It was resolved that the present accountants of the trust, are hereby re-appointed as accountants for the ensuing year.</p>
+    ${donationsPara}
+    <p class="underline-heading">TRUSTEES' REMUNERATION</p>
+    ${remunPara}
+    <p class="underline-heading">SPECIFIC MATTERS</p>
+    ${deedPara}
+    <p>It was hereby resolved that the present trustees of the trust are hereby re-appointed as trustees for the ensuing year.</p>
+    <p>We, the undersigned trustees, attended the above meeting and confirm that the minutes, as stated above, is a correct version of the proceedings.</p>
+    <div class="signature-block">
+      ${sigBlock(dirs)}
+    </div>
+  </div>`;
+  }
+
   let assembledPages = '';
 
   if (entityType === 'trust') {
-    // Trust: Cover + CA Declaration + Compiler's Report + Trustees' Report + Policies
-    assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages;
+    // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies
+    assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages;
   } else if (entityType === 'npo') {
     // NPO: Cover + Review or Audit Report + Policies
     if (reportType === 'review') {
