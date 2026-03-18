@@ -1431,6 +1431,16 @@
 
     <div id="policy-checklist"></div>
 
+    <!-- ── LOAN CERTIFICATES (Company / CC / Trust only) ── -->
+    <div id="loan-cert-divider" style="display:none;"><hr class="form-divider"></div>
+    <div id="loan-cert-block" style="display:none;">
+      <div class="step-label">Step 8</div>
+      <div class="section-title">Loan Certificates</div>
+      <p class="hint" style="margin-bottom:14px;">Each certificate is printed separately and appended after the financial statements. Entity name and year end are pulled from Step 2.</p>
+      <div id="loan-cert-list"></div>
+      <button type="button" onclick="addLoanCert()" style="margin-top:4px;font-size:13px;padding:9px 18px;border:1.5px dashed var(--gold);background:#fffbf0;color:var(--ink);border-radius:7px;cursor:pointer;width:100%;font-family:inherit;">+ Add Loan Certificate</button>
+    </div>
+
     <button class="btn-generate" onclick="generateAndPreview()">Generate Document</button>
     <button class="btn-print" id="btn-print" onclick="printDocument()">🖨 Print / Save as PDF</button>
 
@@ -1927,6 +1937,11 @@ function selectEntity(el, type) {
   const isChurch = (type === 'church');
   document.getElementById('church-policies-block').style.display   = isChurch ? 'block' : 'none';
   document.getElementById('church-policies-divider').style.display = isChurch ? 'block' : 'none';
+
+  // Loan Certificates — Company, CC and Trust only
+  const showLoanCert = (type === 'company' || type === 'cc' || type === 'trust');
+  document.getElementById('loan-cert-block').style.display   = showLoanCert ? 'block' : 'none';
+  document.getElementById('loan-cert-divider').style.display = showLoanCert ? 'block' : 'none';
 
   liveUpdate();
 }
@@ -3310,11 +3325,16 @@ function generateDoc() {
   </div>`;
   }
 
+  // ── LOAN CERTIFICATE PAGES (Company, CC, Trust) ──
+  const loanCertPages = (entityType === 'company' || entityType === 'cc' || entityType === 'trust')
+    ? buildLoanCertPages(co, yearEnd)
+    : '';
+
   let assembledPages = '';
 
   if (entityType === 'trust') {
-    // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies
-    assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages;
+    // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies + Loan Certs
+    assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages + loanCertPages;
   } else if (entityType === 'npo') {
     // NPO: Cover + Review or Audit Report + Policies
     if (reportType === 'review') {
@@ -3378,14 +3398,14 @@ function generateDoc() {
 
     assembledPages = coverPage + pageTrusteesResponsibilities + pageBcAudit + pageTrusteesReport + policyPages + pageBcAGM;
   } else {
-    // Company, CC, and others: Cover + CA Declaration + Responsibilities + Report + Directors' Report + Policies
+    // Company, CC, and others: Cover + CA Declaration + Responsibilities + Report + Directors' Report + Policies + Loan Certs
     if (reportType === 'compilation') {
-      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages;
+      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages + loanCertPages;
     } else if (reportType === 'review') {
-      assembledPages = coverPage + page2 + pageReview + page4 + policyPages;
+      assembledPages = coverPage + page2 + pageReview + page4 + policyPages + loanCertPages;
     } else {
       // Audit
-      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPage;
+      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPage + loanCertPages;
     }
   }
 
@@ -3395,7 +3415,129 @@ function generateDoc() {
 
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('btn-print').classList.add('visible');
+}// ── LOAN CERTIFICATES ────────────────────────────────────────────────────────
+let loanCertCount = 0;
+
+function addLoanCert() {
+  loanCertCount++;
+  const idx = loanCertCount;
+  const container = document.getElementById('loan-cert-list');
+  const card = document.createElement('div');
+  card.id = `loan-cert-card-${idx}`;
+  card.style.cssText = 'background:var(--panel);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px;position:relative;';
+  card.innerHTML = `
+    <button type="button" onclick="removeLoanCert(${idx})" title="Remove" style="position:absolute;top:10px;right:12px;background:none;border:none;cursor:pointer;font-size:16px;color:var(--ink-light);line-height:1;">✕</button>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-light);margin-bottom:10px;">Certificate ${idx}</div>
+
+    <div class="field-group" style="margin-bottom:10px;">
+      <label>Loan / From / (To)</label>
+      <input type="text" id="lc-name-${idx}" placeholder="e.g. YO KHAN MAHOMED" oninput="liveUpdate()" style="text-transform:uppercase;">
+      <p class="hint">Name of the borrower or lender as it should appear on the certificate.</p>
+    </div>
+
+    <div class="field-group" style="margin-bottom:10px;">
+      <label>Balance Type</label>
+      <div class="options-group">
+        <label class="option-pill">
+          <input type="radio" name="lc-balance-${idx}" value="credit" checked onchange="liveUpdate()"> Credit Balance
+        </label>
+        <label class="option-pill">
+          <input type="radio" name="lc-balance-${idx}" value="debit" onchange="liveUpdate()"> Debit Balance
+        </label>
+      </div>
+    </div>
+
+    <div class="field-group" style="margin-bottom:10px;">
+      <label>Amount (R)</label>
+      <input type="text" id="lc-amount-${idx}" placeholder="e.g. 73 660.05" oninput="liveUpdate()">
+    </div>
+
+    <div class="field-group" style="margin-bottom:0;">
+      <label>Date Signed <span style="font-weight:400;color:#9090b0;font-size:11px;">(leave blank if not yet signed)</span></label>
+      <input type="text" id="lc-date-${idx}" placeholder="e.g. STANDERTON, 14 MARCH 2025" oninput="liveUpdate()">
+      <p class="hint">Enter the signing place and date, or leave blank for a blank signature line.</p>
+    </div>
+  `;
+  container.appendChild(card);
 }
+
+function removeLoanCert(idx) {
+  const card = document.getElementById(`loan-cert-card-${idx}`);
+  if (card) card.remove();
+}
+
+function getLoanCerts() {
+  const certs = [];
+  for (let i = 1; i <= loanCertCount; i++) {
+    if (!document.getElementById(`loan-cert-card-${i}`)) continue; // removed
+    const name    = (document.getElementById(`lc-name-${i}`)?.value   || '').trim().toUpperCase();
+    const balance = document.querySelector(`input[name="lc-balance-${i}"]:checked`)?.value || 'credit';
+    const amount  = (document.getElementById(`lc-amount-${i}`)?.value  || '').trim();
+    const date    = (document.getElementById(`lc-date-${i}`)?.value    || '').trim().toUpperCase();
+    certs.push({ name, balance, amount, date });
+  }
+  return certs;
+}
+
+function buildLoanCertPages(co, yearEnd) {
+  const certs = getLoanCerts();
+  if (!certs.length) return '';
+  const coUpper = co.toUpperCase();
+
+  return certs.map(cert => {
+    const loanName   = cert.name   || '[BORROWER / LENDER]';
+    const amtFormatted = cert.amount ? formatNumber(cert.amount) : '[AMOUNT]';
+    const debitAmt   = cert.balance === 'debit'  ? amtFormatted : '';
+    const creditAmt  = cert.balance === 'credit' ? amtFormatted : '';
+    const signedLine = cert.date
+      ? `<p style="margin-top:36px;font-size:10pt;">SIGNED AT ${cert.date}.</p>`
+      : `<p style="margin-top:36px;font-size:10pt;">SIGNED AT <span style="display:inline-block;min-width:200px;border-bottom:1px solid #333;">&nbsp;</span> ON <span style="display:inline-block;min-width:40px;border-bottom:1px solid #333;">&nbsp;</span> DAY OF <span style="display:inline-block;min-width:120px;border-bottom:1px solid #333;">&nbsp;</span> ${new Date().getFullYear()}.</p>`;
+
+    return `
+  <div class="doc-page">
+    ${caLetterhead()}
+    <div style="text-align:center;margin:28px 0 20px;">
+      <h2 style="font-size:13pt;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 16px;">LOAN CERTIFICATE</h2>
+      <p style="font-size:11pt;font-weight:700;margin:0 0 4px;">${coUpper}</p>
+      <p style="font-size:10.5pt;margin:0 0 4px;">LOAN AS AT ${yearEnd ? yearEnd.toUpperCase() : '[YEAR END]'}</p>
+      <p style="font-size:10.5pt;margin:0 0 20px;">LOAN FROM/(TO):&nbsp;&nbsp;<strong>${loanName}</strong></p>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-family:'Libre Baskerville',serif;font-size:10pt;margin-bottom:24px;">
+      <thead>
+        <tr>
+          <td style="width:60%;padding:4px 0;"></td>
+          <td style="width:20%;text-align:right;font-weight:700;padding:4px 8px;border-bottom:1.5px solid #333;">DEBIT</td>
+          <td style="width:20%;text-align:right;font-weight:700;padding:4px 8px;border-bottom:1.5px solid #333;">CREDIT</td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:8px 0 4px;vertical-align:top;">Loan account balance at end of year</td>
+          <td style="text-align:right;padding:8px 8px 4px;vertical-align:top;">${debitAmt}</td>
+          <td style="text-align:right;padding:8px 8px 4px;vertical-align:top;">${creditAmt}</td>
+        </tr>
+        <tr>
+          <td colspan="3" style="border-top:1px solid #ccc;padding-top:2px;"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="font-size:10pt;line-height:1.7;margin-bottom:8px;">
+      <p>I, the undersigned, hereby certify that I have scrutinised the entries in my loan account in the records of the entity and that I agree with the balance as set out above. The loan is unsecured.</p>
+    </div>
+
+    ${signedLine}
+
+    <div style="margin-top:50px;">
+      <div style="border-bottom:1px solid #333;width:280px;margin-bottom:6px;">&nbsp;</div>
+      <p style="font-size:10pt;font-weight:700;margin:0;">LENDER/(BORROWER)</p>
+    </div>
+  </div>`;
+  }).join('');
+}
+
+
 </script>
 </body>
 </html>
