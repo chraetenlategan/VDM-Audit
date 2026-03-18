@@ -466,6 +466,18 @@
   }
 
   @media print {
+    header, .form-panel, .preview-placeholder, #mode-toggle-bar, .btn-print, .btn-generate { display: none !important; }
+    /* Force preview panel to be fully visible regardless of split-view class */
+    .app, .app.split-view, .app.form-only { display: block !important; }
+    .app .preview-panel,
+    .app.split-view .preview-panel,
+    .app.form-only .preview-panel {
+      display: block !important;
+      background: white !important;
+      padding: 0 !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
     .cover-page {
       box-shadow: none;
       margin: 0;
@@ -475,9 +487,29 @@
       padding: 18mm 20mm 16mm;
       min-height: unset;
     }
+    .doc-page {
+      box-shadow: none;
+      margin: 0;
+      page-break-after: always;
+      page-break-inside: avoid;
+      max-width: 100%;
+      width: 100%;
+      padding: 18mm 20mm 16mm;
+      font-size: 9pt;
+      line-height: 1.45;
+    }
+    .doc-page .page-header { margin-bottom: 12px; padding-bottom: 8px; }
+    .doc-page h2 { margin: 10px 0 10px; font-size: 9.5pt; }
+    .doc-page h3 { margin: 8px 0 4px; font-size: 9pt; }
+    .doc-page p { margin-bottom: 5px; }
+    .doc-page ul { margin: 4px 0 6px 18px; }
+    .doc-page ul li { margin-bottom: 3px; }
+    .doc-page .signature-block { margin-top: 14px; }
+    .doc-page .compiler-block { margin-top: 16px; }
+    .page-number { bottom: 12px; right: 20px; }
+    #document-output { display: block !important; }
+    @page { margin: 0; size: A4; }
   }
-
-  .highlighted { background: #fffbe6; }
 
   /* ── REPORT SUB-PANELS ── */
   .report-sub-panel {
@@ -658,46 +690,8 @@
   }
 
   /* ── PRINT ── */
-  @media print {
-    header, .form-panel, .preview-placeholder { display: none !important; }
-    .app { display: block; }
-    .preview-panel {
-      background: white; padding: 0; max-height: none; overflow: visible;
-    }
-    .doc-page {
-      box-shadow: none;
-      margin: 0;
-      page-break-after: always;
-      page-break-inside: avoid;
-      max-width: 100%;
-      width: 100%;
-      padding: 18mm 20mm 16mm;
-      font-size: 9pt;
-      line-height: 1.45;
-    }
-    .doc-page .page-header { margin-bottom: 12px; padding-bottom: 8px; }
-    .doc-page h2 { margin: 10px 0 10px; font-size: 9.5pt; }
-    .doc-page h3 { margin: 8px 0 4px; font-size: 9pt; }
-    .doc-page p { margin-bottom: 5px; }
-    .doc-page ul { margin: 4px 0 6px 18px; }
-    .doc-page ul li { margin-bottom: 3px; }
-    .doc-page .signature-block { margin-top: 14px; }
-    .doc-page .compiler-block { margin-top: 16px; }
-    .page-number { bottom: 12px; right: 20px; }
-    #document-output { display: block !important; }
-    .btn-print { display: none !important; }
-    #mode-toggle-bar { display: none !important; }
-    .form-panel { display: none !important; }
-    .app { display: block !important; }
-    .preview-panel { padding: 0; background: none; max-height: none; overflow: visible; }
 
-    /* Hide browser-added header/footer text */
-    @page {
-      margin: 0;
-      size: A4;
-    }
-  }
-</style>
+  .highlighted { background: #fffbe6; }
 </head>
 <body>
 
@@ -1340,7 +1334,7 @@
     <div id="policy-checklist"></div>
 
     <button class="btn-generate" onclick="generateAndPreview()">Generate Document</button>
-    <button class="btn-print" id="btn-print" onclick="window.print()">🖨 Print / Save as PDF</button>
+    <button class="btn-print" id="btn-print" onclick="printDocument()">🖨 Print / Save as PDF</button>
 
   </div>
 
@@ -2159,7 +2153,92 @@ function getPronoun(dirs, terms) {
   return 'their';
 }
 
-// ── PREVIEW MODE TOGGLE ──────────────────────────────────────────────────────
+// ── PRINT DOCUMENT ──────────────────────────────────────────────────────────
+// Opens a dedicated print window so ALL pages render regardless of scroll
+// position or container overflow — solves the "only current page prints" bug.
+function printDocument() {
+  const output = document.getElementById('document-output');
+  if (!output || !output.classList.contains('visible')) {
+    alert('Please generate a document first before printing.');
+    return;
+  }
+
+  // Collect all <style> elements from the main page
+  const allStyles = Array.from(document.querySelectorAll('style'))
+    .map(s => s.outerHTML)
+    .join('\n');
+
+  // Collect all <link rel="stylesheet"> (Google Fonts etc.)
+  const allLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map(l => l.outerHTML)
+    .join('\n');
+
+  const docContent = output.innerHTML;
+
+  const printHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VDM Financial Statement</title>
+  ${allLinks}
+  ${allStyles}
+  <style>
+    /* Print window overrides — ensure all pages render fully */
+    body { margin: 0; padding: 0; background: white; }
+    .app, .preview-panel, #document-output {
+      display: block !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .doc-page {
+      box-shadow: none !important;
+      margin: 0 !important;
+      page-break-after: always;
+      page-break-inside: avoid;
+      max-width: 100% !important;
+      width: 100% !important;
+      padding: 18mm 20mm 16mm !important;
+      font-size: 9pt !important;
+      line-height: 1.45 !important;
+    }
+    .cover-page {
+      box-shadow: none !important;
+      margin: 0 !important;
+      page-break-after: always;
+      max-width: 100% !important;
+      width: 100% !important;
+      padding: 18mm 20mm 16mm !important;
+      min-height: unset !important;
+    }
+    .page-number { bottom: 12px; right: 20px; }
+    @page { margin: 0; size: A4; }
+  </style>
+</head>
+<body>
+  ${docContent}
+  <script>
+    // Auto-print once fonts and images have loaded
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+        setTimeout(function() { window.close(); }, 500);
+      }, 600);
+    };
+  </script>
+</body>
+</html>`;
+
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) {
+    alert('Pop-up blocked — please allow pop-ups for this page and try again.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(printHTML);
+  printWindow.document.close();
+}
+
 let previewVisible = false;
 
 function togglePreview() {
