@@ -1431,7 +1431,7 @@
 
     <div id="policy-checklist"></div>
 
-    <!-- ── MINUTES (Company only) ── -->
+    <!-- ── MINUTES — Company (Step 8) ── -->
     <div id="minutes-divider" style="display:none;"><hr class="form-divider"></div>
     <div id="minutes-block" style="display:none;">
       <div class="step-label">Step 8</div>
@@ -1454,6 +1454,24 @@
 
       <div id="shareholder-list"></div>
       <button type="button" onclick="addShareholder()" style="margin-top:4px;font-size:13px;padding:9px 18px;border:1.5px dashed var(--gold);background:#fffbf0;color:var(--ink);border-radius:7px;cursor:pointer;width:100%;font-family:inherit;">+ Add Shareholder</button>
+    </div>
+
+    <!-- ── MINUTES — Close Corporation (Step 8) ── -->
+    <div id="cc-minutes-divider" style="display:none;"><hr class="form-divider"></div>
+    <div id="cc-minutes-block" style="display:none;">
+      <div class="step-label">Step 8</div>
+      <div class="section-title">Minutes</div>
+      <p class="hint" style="margin-bottom:14px;">Generates one page — the Annual General Meeting of Members. Members are pulled automatically from Step 4.</p>
+
+      <div class="field-group">
+        <label>Meeting Place</label>
+        <input type="text" id="cc-minutes-venue" placeholder="e.g. Standerton" oninput="liveUpdate()">
+      </div>
+
+      <div class="field-group">
+        <label>Meeting Date</label>
+        <input type="text" id="cc-minutes-date" placeholder="e.g. 24 January 2025" oninput="liveUpdate()">
+      </div>
     </div>
 
     <!-- ── LOAN CERTIFICATES (Company / CC / Trust only) ── -->
@@ -1968,10 +1986,15 @@ function selectEntity(el, type) {
   document.getElementById('loan-cert-block').style.display   = showLoanCert ? 'block' : 'none';
   document.getElementById('loan-cert-divider').style.display = showLoanCert ? 'block' : 'none';
 
-  // Minutes — Company only (not CC)
+  // Minutes — Company only (2 pages: directors + shareholders)
   const showMinutes = (type === 'company');
   document.getElementById('minutes-block').style.display   = showMinutes ? 'block' : 'none';
   document.getElementById('minutes-divider').style.display = showMinutes ? 'block' : 'none';
+
+  // CC Minutes — CC only (1 page: members AGM)
+  const showCCMinutes = (type === 'cc');
+  document.getElementById('cc-minutes-block').style.display   = showCCMinutes ? 'block' : 'none';
+  document.getElementById('cc-minutes-divider').style.display = showCCMinutes ? 'block' : 'none';
 
   liveUpdate();
 }
@@ -3316,7 +3339,6 @@ function generateDoc() {
 
     pageTrustMinutes = `
   <div class="doc-page">
-    ${auditLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
       <div class="co-reg">(${reg})</div>
@@ -3350,22 +3372,57 @@ function generateDoc() {
   </div>`;
   }
 
-  // ── MINUTES PAGES (Company only) ──
-  let minutesPages = '';
-  if (entityType === 'company') {
-    const mVenue      = (getVal('minutes-venue') || '[VENUE]').toUpperCase();
-    const mDate       = getVal('minutes-date')   || '[DATE]';
-    const mDateUpper  = mDate.toUpperCase();
+  // ── CC MINUTES PAGE (CC only — single page: Members AGM) ──
+  let ccMinutesPages = '';
+  if (entityType === 'cc') {
+    const ccVenue     = (getVal('cc-minutes-venue') || '[VENUE]').toUpperCase();
+    const ccDate      = (getVal('cc-minutes-date')  || '[DATE]').toUpperCase();
+    const auditSentenceCC = (reportType === 'audit')
+      ? `<p class="underline-heading">AUDITOR</p>
+         <p>The auditor's remuneration for the past financial year is determined as the amount set out in the financial statements. It is resolved that the present auditors of the entity be hereby re-appointed as auditors for the ensuing year.</p>`
+      : '';
 
-    // ── Directors Meeting ──
-    const pageDirMinutes = `
+    ccMinutesPages = `
   <div class="doc-page">
-    ${caLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
       <div class="co-reg">(Registration Number ${reg})</div>
     </div>
-    <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF DIRECTORS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDateUpper}.</h2>
+    <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF MEMBERS OF THE ENTITY<br>HELD AT ${ccVenue} ON ${ccDate}.</h2>
+    <br>
+    <p><strong>PRESENT:</strong>&nbsp;&nbsp;${dirs.map(d => d.full).join(', ') || '[MEMBER NAMES]'}</p>
+    <p class="underline-heading">QUORUM AND NOTICE</p>
+    <p>As the necessary quorum was present, the chairman declared the meeting properly constituted and the notice convening the meeting was with the consent of the members, taken as read.</p>
+    <p class="underline-heading">MINUTES</p>
+    <p>The minutes of the previous annual general meeting were taken as read and signed by the chairman as a correct record of the proceedings.</p>
+    <p class="underline-heading">ADOPTION OF REPORT AND FINANCIAL STATEMENTS</p>
+    <p>The chairman stated that he had nothing further to add to the report of the members for the year ended ${yearEnd} and moved that the members' report and financial statements for the year ended ${yearEnd} be and they are hereby approved and adopted, and that all matters and business undertaken and discharged by the members on behalf of the entity be and they are hereby confirmed. The chairman's motion was seconded, put to the meeting and carried unanimously. It was resolved that any two of the members of the entity are hereby authorized to sign the aforesaid annual financial statements and members' report, and copies thereof.</p>
+    <p>It was then recorded that, to the best knowledge of the members, all assets and liabilities and contingent liabilities have been recorded in the financial statements. The members are of the opinion that none of the assets had (at date of the balance sheet and on realization in the ordinary course of the entity's business), a value less than the amounts at which they are stated in the balance sheet.</p>
+    ${auditSentenceCC}
+    <p class="underline-heading">MEMBERS</p>
+    <p>The members' remuneration as set out in the financial statements is approved.</p>
+    <p class="underline-heading">GENERAL</p>
+    <p>It was resolved that the forthcoming annual general meeting of the entity be held on&nbsp;<span style="display:inline-block;min-width:200px;border-bottom:1px solid #333;">&nbsp;</span>.</p>
+    <p>Since all business is concluded, the meeting is adjourned.</p>
+    <p>We, the undersigned members, attended the above meeting and confirm that the minutes, as stated above, is a correct version of the proceedings.</p>
+    <div class="signature-block">${sigBlock(dirs)}</div>
+  </div>`;
+  }
+
+  // ── MINUTES PAGES (Company only) ──
+  let minutesPages = '';
+  if (entityType === 'company') {
+    const mVenue      = (getVal('minutes-venue') || '[VENUE]').toUpperCase();
+    const mDate       = (getVal('minutes-date')  || '[DATE]').toUpperCase();
+
+    // ── Directors Meeting ──
+    const pageDirMinutes = `
+  <div class="doc-page">
+    <div class="page-header">
+      <div class="co-name">${coUpper}</div>
+      <div class="co-reg">(Registration Number ${reg})</div>
+    </div>
+    <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF DIRECTORS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDate}.</h2>
     <br>
     <p><strong>PRESENT:</strong>&nbsp;&nbsp;${dirs.map(d => `<span style="display:inline-block;margin-right:40px;">${d.full}</span>`).join('')}</p>
     <p style="font-style:italic;font-size:9pt;color:#888;margin:-4px 0 16px;">(Directors present should cross out their own name above to confirm attendance.)</p>
@@ -3408,12 +3465,11 @@ function generateDoc() {
 
     const pageShAGM = `
   <div class="doc-page">
-    ${caLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
       <div class="co-reg">(Registration Number ${reg})</div>
     </div>
-    <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF SHAREHOLDERS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDateUpper}.</h2>
+    <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF SHAREHOLDERS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDate}.</h2>
     <br>
     <p><strong>PRESENT:</strong>&nbsp;&nbsp;${shPresentList}</p>
     <p class="underline-heading">Quorum and Notice</p>
@@ -3551,14 +3607,14 @@ function generateDoc() {
 
     assembledPages = coverPage + pageTrusteesResponsibilities + pageBcAudit + pageTrusteesReport + policyPages + pageBcAGM;
   } else {
-    // Company, CC, and others: Cover + CA Declaration + Responsibilities + Report + Directors' Report + Policies + Loan Certs + Minutes
+    // Company, CC: Cover + CA Declaration + Responsibilities + Report + Directors' Report + Policies + Loan Certs + Minutes
     if (reportType === 'compilation') {
-      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages + loanCertPages + minutesPages;
+      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages);
     } else if (reportType === 'review') {
-      assembledPages = coverPage + page2 + pageReview + page4 + policyPages + loanCertPages + minutesPages;
+      assembledPages = coverPage + page2 + pageReview + page4 + policyPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages);
     } else {
       // Audit
-      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPage + loanCertPages + minutesPages;
+      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPage + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages);
     }
   }
 
