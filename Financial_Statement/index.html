@@ -1070,18 +1070,32 @@
         <input type="text" id="preparerCapacityOther" placeholder="e.g. secretary" style="display:none;margin-top:8px;" oninput="updatePreparerPreview(); liveUpdate()">
       </div>
       <p class="hint" id="preparer-preview" style="font-style:italic;color:#555;margin-bottom:4px;min-height:16px;"></p>
-      <!-- Engagement letter question - shown for audit only -->
-      <div id="audit-engagement-block" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <!-- Engagement letter question — shown for all report types -->
+      <div id="engagement-block" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
         <label style="font-size:13px;font-weight:600;color:var(--ink);">Do you require an engagement letter?</label>
         <div class="options-group" style="margin-top:6px;">
           <label class="option-pill">
-            <input type="radio" name="engagementLetter" value="no" checked onchange="liveUpdate()"> No
+            <input type="radio" name="engagementLetter" value="no" checked onchange="toggleEngagementTypes(); liveUpdate()"> No
           </label>
           <label class="option-pill">
-            <input type="radio" name="engagementLetter" value="yes" onchange="liveUpdate()"> Yes
+            <input type="radio" name="engagementLetter" value="yes" onchange="toggleEngagementTypes(); liveUpdate()"> Yes
           </label>
         </div>
-        <p class="hint">If yes, an engagement letter will be appended to the generated document.</p>
+        <div id="engagement-types-panel" style="display:none;margin-top:10px;padding:12px 16px;background:var(--panel);border-radius:8px;border:1px solid var(--border);">
+          <label style="font-size:12px;font-weight:600;color:var(--ink-light);display:block;margin-bottom:8px;">Select engagement letter type(s):</label>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <label class="option-pill" style="display:inline-flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="engTypeAccounting" onchange="liveUpdate()"> Accounting
+            </label>
+            <label class="option-pill" style="display:inline-flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="engTypeReview" onchange="liveUpdate()"> Review
+            </label>
+            <label class="option-pill" style="display:inline-flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="engTypeAudit" onchange="liveUpdate()"> Audit
+            </label>
+          </div>
+        </div>
+        <p class="hint">If yes, the selected engagement letter(s) will be appended to the generated document.</p>
       </div>
     </div>
 
@@ -2020,12 +2034,22 @@ function onReportTypeChange() {
       : 'VDM Signatory (Reviewer / Auditor)';
   }
 
-  // Show engagement letter question only when audit is selected (non-school)
-  const engBlock = document.getElementById('audit-engagement-block');
-  if (engBlock) engBlock.style.display = (type === 'audit' && !isSchool) ? 'block' : 'none';
+  // Show engagement letter question for all report types (except school)
+  const engBlock = document.getElementById('engagement-block');
+  if (engBlock) engBlock.style.display = (!isSchool) ? 'block' : 'none';
 
   updatePreparerPreview();
   liveUpdate();
+}
+
+function toggleEngagementTypes() {
+  const show = getRadio('engagementLetter') === 'yes';
+  document.getElementById('engagement-types-panel').style.display = show ? 'block' : 'none';
+  if (!show) {
+    document.getElementById('engTypeAccounting').checked = false;
+    document.getElementById('engTypeReview').checked = false;
+    document.getElementById('engTypeAudit').checked = false;
+  }
 }
 
 function onAuditTypeChange() {
@@ -3237,41 +3261,167 @@ function generateDoc() {
     <div class="page-number">${pg3}</div>
   </div>`;
 
-  // ── SHARED ENGAGEMENT LETTER BUILDER ──  // Used by any entity that selects Audit and answers Yes to the engagement letter question.
-  function buildEngagementLetter() {
-    const engSignerNameMap = {
-      'L VAN DER MERWE':  'L van der Merwe',
-      'HL VAN DER MERWE': 'HL van der Merwe',
-      'R DE BEER':        'R de Beer',
-      'R WOLMARANS':      'R Wolmarans'
-    };
-    const engPractitioner = engSignerNameMap[compilerSigner] || compilerSigner;
-    const postalLines = postal.split(',').map(s => s.trim()).filter(Boolean);
-    const postalHtml  = postalLines.map(l => `<p style="margin:0;line-height:1.6;">${l}</p>`).join('');
+  // ── ENGAGEMENT LETTER BUILDERS ──
+  // Accounting & Review use CA letterhead; Audit uses Audit letterhead.
+  // Entity-aware addressing: directors/members/trustees/committee etc.
+
+  const engSignerNameMap = {
+    'L VAN DER MERWE':  'L van der Merwe',
+    'HL VAN DER MERWE': 'HL van der Merwe',
+    'R DE BEER':        'R de Beer',
+    'R WOLMARANS':      'R Wolmarans'
+  };
+  const engPractitioner = engSignerNameMap[compilerSigner] || compilerSigner;
+  const postalLines = postal.split(',').map(s => s.trim()).filter(Boolean);
+  const postalHtml  = postalLines.map(l => `<p style="margin:0;line-height:1.6;">${l}</p>`).join('');
+
+  // Addressee label based on entity type
+  const engAddressee = entityType === 'cc'     ? 'The Members'
+                     : entityType === 'trust'  ? 'The Trustees'
+                     : entityType === 'bc'     ? 'The Trustees'
+                     : entityType === 'npo'    ? 'The Committee'
+                     : entityType === 'church' ? 'The Church Council'
+                     : entityType === 'club'   ? 'The Committee'
+                     : 'The Directors';
+
+  // Director labels for signature block
+  const engSigLabels = entityType === 'cc' ? dirs.map(d => d.name.toUpperCase())
+    : entityType === 'trust' || entityType === 'bc' ? dirs.map(d => d.name.toUpperCase())
+    : dirs.map(d => d.name.toUpperCase());
+  const engSigBlock = engSigLabels.length > 0
+    ? `<div style="display:grid;grid-template-columns:${engSigLabels.length > 1 ? '1fr 1fr' : '1fr'};gap:32px;margin-top:24px;">
+        ${engSigLabels.map(n => `<div><div style="border-top:1px solid #333;padding-top:6px;font-weight:bold;">${n}</div></div>`).join('')}
+       </div>`
+    : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:24px;">
+        <div><div style="border-top:1px solid #333;padding-top:6px;font-weight:bold;">&nbsp;</div></div>
+        <div><div style="border-top:1px solid #333;padding-top:6px;font-weight:bold;">&nbsp;</div></div>
+       </div>`;
+
+  // ── ACCOUNTING ENGAGEMENT LETTER (CA Letterhead) ──
+  function buildAccountingEngagementLetter() {
+    return `
+  <div class="doc-page">
+    ${caLetterhead()}
+    <br>
+    <p style="margin:0;line-height:1.6;">${engAddressee}</p>
+    <p style="margin:0;line-height:1.6;font-weight:bold;">${co}</p>
+    ${postalHtml}
+    <br>
+    <p><strong>APPOINTMENT TO PROVIDE SERVICES</strong></p>
+    <p>Following our recent discussion with you, we are pleased to confirm acceptance of our engagement to provide accounting, taxation and secretarial services to you. This letter sets forth our understanding of the terms and objectives of our engagement, and the nature and scope of the services we will provide. This letter is effective as from ${dateSigned || '[DATE]'} and does not need to be completed annually, but only when amendments are to be made.</p>
+    <p><em><strong>Accounting records; preparing of financial statements; taxation and secretarial services:</strong></em></p>
+    <p>All the above duties are the responsibility of the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} of ${co} as set out in various different acts and laws including but not limited to the Companies Act, Income Tax Act, Labour Act, etc. We will assist you in various ways to fulfill your responsibilities.</p>
+    <p>We will prepare accounting records, financial statements and cash-flow projections as per your request. We will also prepare and submit various returns on your behalf including income tax, dividend tax, PAYE, IRP5 reconciliations, VAT, UIF, workmen's compensation, etc. as per your request. We will assist you with the secretarial services of your entity as prescribed by the various acts applicable on your request.</p>
+    <p>All the above services will be based on the information supplied by you. Any enquiries and investigations that we may undertake in respect of supporting evidence are for the purpose of enabling us to adequately provide you with the services alone, and therefore do not fall outside the description of our appointment.</p>
+    <p>We may also be obliged to take certain action if, during the performance of our duties as accountants and tax practitioners, we become aware of contraventions of the Prevention of Organized Crime Act 121 of 1998 and the Financial Intelligence Centre Act 38 of 2001.</p>
+    <p><em><strong>Deadlines:</strong></em></p>
+    <p>As all or most of our services have to be completed at a certain date, we request that information is supplied to us in advance, taking the time that we need to complete the work into consideration. We will as far as possible send reminders of deadlines, but the responsibility to supply the relevant documentation before the deadline, lies with you.</p>
+    <p><em><strong>Excluded services:</strong></em></p>
+    <p>This letter only relates to services as described and does not extend to services such as audits and reviews of financial statements.</p>
+    <p><em><strong>Liability and limitations:</strong></em></p>
+    <p>We will provide the professional services outlined in this letter with reasonable care and skill as our reputation over decades speaks for itself. Our advice to you will be based on our interpretation of the law and our experience with SARS and other role players. Therefore the conclusions reached and views expressed will often be matters of opinion rather than certainty and we cannot warrant that SARS and others will necessarily reach the same conclusions. We will not be responsible for any losses, penalties, interest or additional tax liabilities arising for whichever reason as the responsibility at all times lies with the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'}.</p>
+    <p>Our maximum liability for any claims that might arise out of services provided by us shall be limited to the total amount of fees charged by us for our services over the 12 months preceding our claim. The maximum liability shall be the aggregate liability for all claims arising from whatsoever source.</p>
+    <p><em><strong>Fees:</strong></em></p>
+    <p>Our fees will be calculated on the basis of time spent on your affairs by partners and personnel. Rates charged are based on experience and qualification of various personnel. Accounts will be sent to you at appropriate intervals during the course of the year. Our account is payable on presentation on which interest will be charged on any outstanding balance older than 60 days. The ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} accept full responsibility in their personal capacity for the payment of any outstanding balance should the entity prove not to be able to pay the outstanding balance. We have the right to retention over all documents prepared by us and have the right to suspend all services rendered by us until such time as our account is settled in full.</p>
+    <p>This letter will be effective for future years unless it is terminated or suspended.</p>
+    <p>Kindly acknowledge receipt of this letter. Should the content not correspond with your view of our terms of engagement, we will gladly discuss this matter further with you.</p>
+    <p>Yours Faithfully</p>
+    <br>
+    <p><strong>${compilerSigner}</strong></p>
+    <br>
+    <p>We, the undersigned, agree to the terms of this letter.</p>
+    ${engSigBlock}
+    <p style="margin-top:18px;">${dateSigned}</p>
+  </div>`;
+  }
+
+  // ── REVIEW ENGAGEMENT LETTER (CA Letterhead) ──
+  function buildReviewEngagementLetter() {
+    return `
+  <div class="doc-page">
+    ${caLetterhead()}
+    <br>
+    <p style="margin:0;line-height:1.6;">${engAddressee}</p>
+    <p style="margin:0;line-height:1.6;font-weight:bold;">${co}</p>
+    ${postalHtml}
+    <br>
+    <p><strong>ENGAGEMENT LETTER TO REVIEW FINANCIAL STATEMENTS</strong></p>
+    <p><em><strong>The objective and scope of the review and our responsibilities</strong></em></p>
+    <p>You have requested that we review the financial statements of ${co} for the year ended ${yearEnd}, comprising the statement of financial position, the statement of comprehensive income, statement of changes in equity and statement of cash flows for the year then ended, and a summary of significant accounting policies and other explanatory information, and the ${entityType === 'cc' ? "members'" : entityType === 'trust' || entityType === 'bc' ? "trustees'" : "directors'"} report. We are pleased to confirm our acceptance and our understanding of this review engagement by means of this letter. We will conduct our review in accordance with International Standard on Review Engagements (ISRE) 2400 — Engagements to Review Financial Statements. ISRE 2400 requires us to conclude whether anything has come to our attention that causes us to believe that the financial statements, taken as a whole, are not prepared in all material respects in accordance with the applicable financial reporting framework or stated accounting policies. ISRE 2400 also requires us to comply with relevant ethical requirements. A review of financial statements in accordance with ISRE 2400 consists primarily of making inquiries of management and others within the entity that are involved in financial and accounting matters, applying analytical procedures and evaluating the sufficiency and appropriateness of their view evidence obtained. A review may also include any other procedures we consider necessary in the circumstances of the engagement to obtain sufficient and appropriate evidence as the basis for our conclusion on the financial statements as a whole. The procedures selected will depend on what we consider necessary, applying our professional judgment, based on our understanding of the entity and its environment, and our understanding of the applicable financial reporting framework or stated accounting policies and its application in the circumstances. We will not perform an audit of the financial statements. As we are engaged to review the financial statements:</p>
+    <p>There is a commensurate higher risk that any material misstatements that exist in the financial statements reviewed may not be revealed by the review, even though the review is properly performed in accordance with ISRE 2400. The procedures performed in a review engagement do not provide all the evidence that would be required in an audit.</p>
+    <p>In expressing our review conclusion, our report on the financial statements will state that an audit has not been performed and that we do not express an audit opinion on the financial statements.</p>
+    <p><em><strong>Responsibilities of the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'}</strong></em></p>
+    <p>The ${entityType === 'cc' ? 'members are' : entityType === 'trust' || entityType === 'bc' ? 'trustees are' : 'directors are'} responsible for the calculation of the public interest score in accordance with Regulation 26 of the Companies Regulations, 2011. The entity's public interest score should be calculated by the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} at year-end for the current financial year. It is the sole responsibility of the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} to determine the appropriateness of a review engagement in the circumstances of the ${entityType === 'cc' ? 'close corporation' : 'company'}, in compliance with the requirements of the Companies Act, 2008, and taking cognizance of any other requirements or agreements that may be applicable to the ${entityType === 'cc' ? 'close corporation' : 'company'}.</p>
+    <p>Our review will be conducted on the basis that you acknowledge and understand that you have responsibility:</p>
+    <ul>
+      <li>For the preparation and fair presentation of the financial statements in accordance with the International Financial Reporting Standard for Small and Medium-sized Entities (IFRS for SMEs) and the requirements of the Companies Act of South Africa;</li>
+      <li>For such internal control as you determine is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error; and</li>
+      <li>To provide us with access to all information of which you are aware that is relevant to the preparation of the financial statements, such as records, documentation and other matters, additional information that we may request from you for the purpose of the review, and unrestricted access to persons within the entity from whom we determine it necessary to obtain evidence.</li>
+    </ul>
+    <p>As part of our review, we will request from management and, where appropriate, from those charged with governance, written confirmation concerning representations made to us in connection with the review.</p>
+    <p><em><strong>Reporting</strong></em></p>
+    <p>As stated above, our review will be conducted with the objective of expressing a review conclusion on the financial statements as a whole. Our review conclusion will be communicated in a written report. If the review conclusion on the financial statements of the ${entityType === 'cc' ? 'close corporation' : 'company'} is unmodified, it is currently expected to read as follows:</p>
+    <p>"Based on our review, nothing has come to our attention that causes us to believe that the financial statements do not present fairly, in all material respects, the financial position of the ${entityType === 'cc' ? 'close corporation' : 'company'} at the reporting date, and its financial performance and its cash flows for the year then ended, in accordance with the International Financial Reporting Standard for Small and Medium-sized Entities (IFRS for SMEs) and the requirements of the Companies Act of South Africa." However, the form and contents of our report may need to be amended in the light of our findings obtained from the review.</p>
+    <p><em><strong>Reportable irregularities in terms of Regulation 29 of the Companies Regulations, 2011</strong></em></p>
+    <p>It is our responsibility to inform you regarding our obligation, in terms of Regulation 29 of the Companies Regulations, 2011, to report reportable irregularities to the Companies and Intellectual Property Commission (the Commission).</p>
+    <p>A "reportable irregularity" refers to any act or omission committed by any person responsible for the management of a ${entityType === 'cc' ? 'close corporation' : 'company'}, which:</p>
+    <ul>
+      <li>Unlawfully has caused or is likely to cause material financial loss to the ${entityType === 'cc' ? 'close corporation' : 'company'} or to any member, shareholder, creditor or investor of the ${entityType === 'cc' ? 'close corporation' : 'company'} in respect of his, her or its dealings with that entity; or</li>
+      <li>Is fraudulent or amounts to theft; or</li>
+      <li>Causes or has caused the ${entityType === 'cc' ? 'close corporation' : 'company'} to trade under insolvent circumstances.</li>
+    </ul>
+    <p>We are not required to design procedures for the specific purpose of identifying reportable irregularities. However, we will consider all information that comes to our attention from any source in order to determine whether a reporting obligation arises. In instances where we are satisfied or have reason to believe that a reportable irregularity has taken place or is taking place, the practitioner responsible and accountable for the review engagement is required, without delay, to send a written report to the Commission. Such a report initiates a series of activities in accordance with Regulation 29 of the Companies Regulations, 2011, pertaining to discussing the report with the members of the Board of the ${entityType === 'cc' ? 'close corporation' : 'company'}, obtaining representations from the Board and sending a final report to the Commission concluding on the existence and status of a reportable irregularity, including information relating to steps that have been taken for the prevention or recovery of any loss as a result thereof (if relevant). Please do not hesitate to contact us if you require further clarification regarding our obligation to report reportable irregularities to the Commission.</p>
+    <p><em><strong>Fees</strong></em></p>
+    <p>Our fees are based on the time required by the resources assigned to the engagement. The fees billed are based on the degree of responsibility involved, as well as the level of experience, knowledge and skill required. Our fees, together with disbursements, will be billed as work progresses, and settlement is due on presentation of our invoices.</p>
+    <p><em><strong>Agreement of terms</strong></em></p>
+    <p>We look forward to full cooperation with your staff during our review. We are available to discuss this letter with you at any time. Once it has been agreed to, this letter will remain effective for future years unless it is terminated, amended or superseded. The individual practitioner responsible and accountable for the review engagement is:</p>
+    <p><strong>${engPractitioner}</strong></p>
+    <p>Please sign and return the attached copy of this letter, including our standard terms and conditions, to indicate that it is in accordance with your understanding of, and agreement with, the arrangements for our review of the financial statements, including our respective responsibilities.</p>
+    <p>Yours faithfully</p>
+    <br>
+    <p><strong>VDM CHARTERED ACCOUNTANTS (SA)</strong></p>
+    <br>
+    <p>We, the undersigned, being duly authorized to sign for or on behalf of the entity, herewith accept the above terms of the engagement.</p>
+    ${engSigBlock}
+    <p style="margin-top:18px;">${dateSigned}</p>
+  </div>`;
+  }
+
+  // ── AUDIT ENGAGEMENT LETTER (Audit Letterhead) ──
+  function buildAuditEngagementLetter() {
     return `
   <div class="doc-page">
     ${auditLetterhead()}
     <br>
-    <p style="margin:0;line-height:1.6;">The Committee</p>
+    <p style="margin:0;line-height:1.6;">${engAddressee}</p>
     <p style="margin:0;line-height:1.6;font-weight:bold;">${co}</p>
     ${postalHtml}
     <br>
     <p><strong>ENGAGEMENT LETTER TO AUDIT FINANCIAL STATEMENTS</strong></p>
     <p><em><strong>The objective and scope of the audit and our responsibilities</strong></em></p>
-    <p>You have requested that we audit the financial statements of ${co} for the year ended ${yearEnd}, comprising the statement of financial position, the statement of profit or loss, statement of changes in funds and statement of cash flows for the year then ended, and a summary of significant accounting policies and other explanatory information. Our audit will be made with the objective of our expressing an opinion on the financial statements. We will conduct our audit in accordance with International Standards on Auditing (or refer to relevant national standards or practices). Those Standards require that we plan and perform the audit to obtain reasonable assurance about whether the financial statements are free of material misstatements. An audit includes examining, on a test basis, evidence supporting the amounts and disclosures in the financial statements. An audit also includes assessing the accounting principles used and significant estimates made by management, as well as evaluating the overall financial statement presentation. Because of the test nature and other inherent limitations of an audit, together with the inherent limitations of any accounting and internal control system, there is an unavoidable risk that even some material misstatements may remain undiscovered. In addition to our report on the financial statements, we expect to provide you with a separate letter concerning any material weaknesses in accounting and internal control systems which come to our notice.</p>
-    <p><em><strong>Responsibilities of the committee</strong></em></p>
-    <p>It is the sole responsibility of the committee to determine the appropriateness of an audit engagement in the circumstances of the entity, and taking cognizance of any other requirements or agreements that may be applicable.</p>
+    <p>You have requested that we audit the financial statements of ${co} for the year ended ${yearEnd}, comprising the statement of financial position, the statement of comprehensive income, statement of changes in equity and statement of cash flows for the year then ended, and a summary of significant accounting policies and other explanatory information, and the ${entityType === 'cc' ? "members'" : entityType === 'trust' || entityType === 'bc' ? "trustees'" : "directors'"} report. Our audit will be made with the objective of our expressing an opinion on the financial statements. We will conduct our audit in accordance with International Standards on Auditing (or refer to relevant national standards or practices). Those Standards require that we plan and perform the audit to obtain reasonable assurance about whether the financial statements are free of material misstatements. An audit includes examining, on a test basis, evidence supporting the amounts and disclosures in the financial statements. An audit also includes assessing the accounting principles used and significant estimates made by management, as well as evaluating the overall financial statement presentation. Because of the test nature and other inherent limitations of an audit, together with the inherent limitations of any accounting and internal control system, there is an unavoidable risk that even some material misstatements may remain undiscovered. In addition to our report on the financial statements, we expect to provide you with a separate letter concerning any material weaknesses in accounting and internal control systems which come to our notice.</p>
+    <p><em><strong>Responsibilities of the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'}</strong></em></p>
+    <p>The ${entityType === 'cc' ? 'members are' : entityType === 'trust' || entityType === 'bc' ? 'trustees are' : 'directors are'} responsible for the calculation of the public interest score in accordance with Regulation 26 of the Companies Regulations, 2011. The entity's public interest score should be calculated by the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} at year-end for the current financial year. It is the sole responsibility of the ${entityType === 'cc' ? 'members' : entityType === 'trust' || entityType === 'bc' ? 'trustees' : 'directors'} to determine the appropriateness of an audit engagement in the circumstances of the ${entityType === 'cc' ? 'close corporation' : 'company'}, in compliance with the requirements of the Companies Act, 2008, and taking cognizance of any other requirements or agreements that may be applicable to the ${entityType === 'cc' ? 'close corporation' : 'company'}.</p>
     <p>Our audit will be conducted on the basis that you acknowledge and understand that you have responsibility:</p>
     <ul>
-      <li>For the preparation and fair presentation of the financial statements in accordance with the International Financial Reporting Standard for Small and Medium-sized Entities (IFRS for SMEs)</li>
+      <li>For the preparation and fair presentation of the financial statements in accordance with the International Financial Reporting Standard for Small and Medium-sized Entities (IFRS for SMEs) and the requirements of the Companies Act of South Africa;</li>
       <li>For such internal control as you determine is necessary to enable the preparation of financial statements that are free from material misstatement, whether due to fraud or error; and</li>
       <li>To provide us with access to all information of which you are aware that is relevant to the preparation of the financial statements, such as records, documentation and other matters, additional information that we may request from you for the purpose of the review, and unrestricted access to persons within the entity from whom we determine it necessary to obtain evidence.</li>
     </ul>
     <p>As part of our audit, we will request from management and, where appropriate, from those charged with governance, written confirmation concerning representations made to us in connection with the audit.</p>
     <p><em><strong>Reporting</strong></em></p>
-    <p>As stated above, our audit will be conducted with the objective of expressing an audit conclusion on the financial statements as a whole. Our audit conclusion will be communicated in a written report. If the audit conclusion on the financial statements is unmodified, it is currently expected to read as follows:</p>
-    <p>"In our opinion, the financial statements present fairly, in all material respects, the financial position as at ${yearEnd}, and its financial performance and cash flows for the year then ended in accordance with International Financial Reporting Standards for Small and Medium-sized Entities."</p>
+    <p>As stated above, our audit will be conducted with the objective of expressing an audit conclusion on the financial statements as a whole. Our audit conclusion will be communicated in a written report. If the audit conclusion on the financial statements of the ${entityType === 'cc' ? 'close corporation' : 'company'} is unmodified, it is currently expected to read as follows:</p>
+    <p>"In our opinion, the financial statements present fairly, in all material respects, the financial position as at ${yearEnd}, and its financial performance and cash flows for the year then ended in accordance with International Financial Reporting Standards for Small and Medium-sized Entities and the requirements of the Companies Act of South Africa."</p>
     <p>However, the form and contents of our report may need to be amended in the light of our findings obtained from the audit.</p>
+    <p><em><strong>Reportable irregularities in terms of Regulation 29 of the Companies Regulations, 2011</strong></em></p>
+    <p>It is our responsibility to inform you regarding our obligation, in terms of Regulation 29 of the Companies Regulations, 2011, to report reportable irregularities to the Companies and Intellectual Property Commission (the Commission).</p>
+    <p>A "reportable irregularity" refers to any act or omission committed by any person responsible for the management of a ${entityType === 'cc' ? 'close corporation' : 'company'}, which:</p>
+    <ul>
+      <li>Unlawfully has caused or is likely to cause material financial loss to the ${entityType === 'cc' ? 'close corporation' : 'company'} or to any member, shareholder, creditor or investor of the ${entityType === 'cc' ? 'close corporation' : 'company'} in respect of his, her or its dealings with that entity; or</li>
+      <li>Is fraudulent or amounts to theft; or</li>
+      <li>Causes or has caused the ${entityType === 'cc' ? 'close corporation' : 'company'} to trade under insolvent circumstances.</li>
+    </ul>
+    <p>We are not required to design procedures for the specific purpose of identifying reportable irregularities. However, we will consider all information that comes to our attention from any source in order to determine whether a reporting obligation arises. In instances where we are satisfied or have reason to believe that a reportable irregularity has taken place or is taking place, the practitioner responsible and accountable for the audit engagement is required, without delay, to send a written report to the Commission. Such a report initiates a series of activities in accordance with Regulation 29 of the Companies Regulations, 2011, pertaining to discussing the report with the members of the Board of the ${entityType === 'cc' ? 'close corporation' : 'company'}, obtaining representations from the Board and sending a final report to the Commission concluding on the existence and status of a reportable irregularity, including information relating to steps that have been taken for the prevention or recovery of any loss as a result thereof (if relevant). Please do not hesitate to contact us if you require further clarification regarding our obligation to report reportable irregularities to the Commission.</p>
     <p><em><strong>Fees</strong></em></p>
     <p>Our fees are based on the time required by the resources assigned to the engagement. The fees billed are based on the degree of responsibility involved, as well as the level of experience, knowledge and skill required. Our fees, together with disbursements, will be billed as work progresses, and settlement is due on presentation of our invoices.</p>
     <p><em><strong>Agreement of terms</strong></em></p>
@@ -3279,20 +3429,23 @@ function generateDoc() {
     <p><strong>${engPractitioner}</strong></p>
     <p>Please sign and return the attached copy of this letter, including our standard terms and conditions, to indicate that it is in accordance with your understanding of, and agreement with, the arrangements for our audit of the financial statements, including our respective responsibilities.</p>
     <p>Yours faithfully</p>
-    <p><strong>VDM AUDIT</strong></p>
+    <br>
+    <p><strong>VDM AUDIT INC.</strong></p>
     <br>
     <p>We, the undersigned, being duly authorized to sign for or on behalf of the entity, herewith accept the above terms of the engagement.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:24px;">
-      <div><div style="border-top:1px solid #333;padding-top:6px;font-weight:bold;">CHAIRMAN</div></div>
-      <div><div style="border-top:1px solid #333;padding-top:6px;font-weight:bold;">TREASURER</div></div>
-    </div>
+    ${engSigBlock}
     <p style="margin-top:18px;">${dateSigned}</p>
   </div>`;
   }
 
-  // ── CONDITIONAL PAGE ASSEMBLY ──
-  const needsEngagementLetter = (reportType === 'audit') && (getRadio('engagementLetter') === 'yes');
-  const engagementLetterPage  = needsEngagementLetter ? buildEngagementLetter() : '';
+  // ── CONDITIONAL ENGAGEMENT LETTER ASSEMBLY ──
+  const wantsEngagement = getRadio('engagementLetter') === 'yes';
+  let engagementLetterPages = '';
+  if (wantsEngagement) {
+    if (document.getElementById('engTypeAccounting').checked) engagementLetterPages += buildAccountingEngagementLetter();
+    if (document.getElementById('engTypeReview').checked)     engagementLetterPages += buildReviewEngagementLetter();
+    if (document.getElementById('engTypeAudit').checked)      engagementLetterPages += buildAuditEngagementLetter();
+  }
 
   // ── TRUST MINUTES PAGE ──
   let pageTrustMinutes = '';
@@ -3629,14 +3782,14 @@ function generateDoc() {
   let assembledPages = '';
 
   if (entityType === 'trust') {
-    // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies + Loan Certs + Repr Letter
-    assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages + loanCertPages + reprLetter;
+    // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies + Loan Certs + Engagement Letters + Repr Letter
+    assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages + loanCertPages + engagementLetterPages + reprLetter;
   } else if (entityType === 'npo') {
-    // NPO: Cover + Review or Audit Report + Policies + Repr Letter
+    // NPO: Cover + Review or Audit Report + Policies + Engagement Letters + Repr Letter
     if (reportType === 'review') {
-      assembledPages = coverPage + pageReview + policyPages + reprLetter;
+      assembledPages = coverPage + pageReview + policyPages + engagementLetterPages + reprLetter;
     } else {
-      assembledPages = coverPage + pageAudit + policyPages + engagementLetterPage + reprLetter;
+      assembledPages = coverPage + pageAudit + policyPages + engagementLetterPages + reprLetter;
     }
   } else if (entityType === 'school') {
     // School: Cover + School Audit Report + Policies (no repr letter)
@@ -3644,10 +3797,10 @@ function generateDoc() {
   } else if (entityType === 'church') {
     // Church: Cover + Audit Report + (optional) Policies + Repr Letter
     const includeChurchPolicies = getRadio('churchPolicies') !== 'no';
-    assembledPages = coverPage + pageAudit + (includeChurchPolicies ? policyPages : '') + engagementLetterPage + reprLetter;
+    assembledPages = coverPage + pageAudit + (includeChurchPolicies ? policyPages : '') + engagementLetterPages + reprLetter;
   } else if (entityType === 'club') {
     // Club: Cover + Audit Report + Policies + Repr Letter
-    assembledPages = coverPage + pageAudit + policyPages + engagementLetterPage + reprLetter;
+    assembledPages = coverPage + pageAudit + policyPages + engagementLetterPages + reprLetter;
   } else if (entityType === 'bc') {
     // Body Corporate: Cover + Trustees' Responsibilities (pg1) + Audit Report (pg2) + Trustees' Report (pg3) + Policies + (optional) AGM Minutes
     const pageBcAudit = pageAudit.replace(`<div class="page-number">${pg3}</div>`, `<div class="page-number">${pg2}</div>`);
@@ -3692,16 +3845,16 @@ function generateDoc() {
   </div>`;
     }
 
-    assembledPages = coverPage + pageTrusteesResponsibilities + pageBcAudit + pageTrusteesReport + policyPages + pageBcAGM + reprLetter;
+    assembledPages = coverPage + pageTrusteesResponsibilities + pageBcAudit + pageTrusteesReport + policyPages + pageBcAGM + engagementLetterPages + reprLetter;
   } else {
     // Company, CC: Cover + CA Declaration + Responsibilities + Report + Directors' Report + Policies + Loan Certs + Minutes + Repr Letter
     if (reportType === 'compilation') {
-      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
+      assembledPages = coverPage + page1 + page2 + page3 + page4 + policyPages + engagementLetterPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
     } else if (reportType === 'review') {
-      assembledPages = coverPage + page2 + pageReview + page4 + policyPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
+      assembledPages = coverPage + page2 + pageReview + page4 + policyPages + engagementLetterPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
     } else {
       // Audit
-      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPage + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
+      assembledPages = coverPage + page2 + pageAudit + page4 + policyPages + engagementLetterPages + loanCertPages + (entityType === 'cc' ? ccMinutesPages : minutesPages) + reprLetter;
     }
   }
 
