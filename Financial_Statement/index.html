@@ -784,7 +784,15 @@
       <input type="text" id="companyName" placeholder="e.g. Aruba 33 (Proprietary) Limited" oninput="liveUpdate()">
     </div>
 
-    <div class="field-group">
+    <div class="field-group" id="att-reg-toggle-group" style="display:none;">
+      <label style="font-size:13px;font-weight:600;color:var(--ink);">Does the firm have a registration number?</label>
+      <div class="options-group" style="margin-top:4px;">
+        <label class="option-pill"><input type="radio" name="attHasReg" value="yes" checked onchange="toggleAttReg(); liveUpdate()"> Yes</label>
+        <label class="option-pill"><input type="radio" name="attHasReg" value="no" onchange="toggleAttReg(); liveUpdate()"> No</label>
+      </div>
+    </div>
+
+    <div class="field-group" id="reg-number-group">
       <label id="label-regNumber">Registration Number</label>
       <input type="text" id="regNumber" placeholder="e.g. 2002/002880/07" oninput="liveUpdate()">
     </div>
@@ -1502,7 +1510,8 @@
       </div>
     </div>
 
-    <hr class="form-divider">
+    <hr class="form-divider" id="step7-divider">
+    <div id="step7-block">
     <div class="step-label">Step 7</div>
     <div class="section-title">Accounting Policies to Include</div>
     <p class="hint" style="margin-bottom:10px;">Tick only the policies applicable to this entity. Unticked policies will not appear in the document.</p>
@@ -1512,6 +1521,7 @@
     </div>
 
     <div id="policy-checklist"></div>
+    </div><!-- end step7-block -->
 
     <!-- ── MINUTES — Company (Step 8) ── -->
     <div id="minutes-divider" style="display:none;"><hr class="form-divider"></div>
@@ -2022,6 +2032,15 @@ function selectEntity(el, type) {
   document.getElementById('label-regNumber').textContent = cfg.regLabel;
   document.getElementById('regNumber').placeholder = cfg.regPlaceholder;
 
+  // Attorneys: show reg number toggle, reset if switching away
+  const isAttorneys = (type === 'attorneys');
+  document.getElementById('att-reg-toggle-group').style.display = isAttorneys ? 'block' : 'none';
+  if (!isAttorneys) {
+    document.getElementById('reg-number-group').style.display = '';
+  } else {
+    toggleAttReg();
+  }
+
   // Update governing body section title
   document.getElementById('directors-section-title').textContent = cfg.bodyTitle;
 
@@ -2059,6 +2078,10 @@ function selectEntity(el, type) {
   const hideStep6 = (type === 'school' || type === 'npo' || type === 'bc' || type === 'club' || type === 'church' || type === 'trust' || type === 'attorneys');
   document.getElementById('step6-block').style.display   = hideStep6 ? 'none' : '';
   document.getElementById('step6-divider').style.display = hideStep6 ? 'none' : '';
+
+  // Hide Step 7 (Accounting Policies) for Attorneys
+  document.getElementById('step7-block').style.display   = (type === 'attorneys') ? 'none' : '';
+  document.getElementById('step7-divider').style.display = (type === 'attorneys') ? 'none' : '';
 
   // Show BC-specific Step 6 only for Body Corporate
   const isBc = (type === 'bc');
@@ -2142,6 +2165,13 @@ function onAttOpinionTypeChange() {
   const t = getRadio('attOpinionType');
   toggleVisible('att-modified-box',    t === 'modified');
   toggleVisible('att-disclaimer-box',  t === 'disclaimer');
+  liveUpdate();
+}
+
+function toggleAttReg() {
+  const show = getRadio('attHasReg') === 'yes';
+  document.getElementById('reg-number-group').style.display = show ? '' : 'none';
+  if (!show) document.getElementById('regNumber').value = '';
   liveUpdate();
 }
 
@@ -2582,7 +2612,10 @@ function liveUpdate() { /* update on generate */ }
 // ── DOCUMENT GENERATION ──
 function generateDoc() {
   const co          = getVal('companyName') || '[COMPANY NAME]';
-  const reg         = getVal('regNumber')   || '[REGISTRATION NUMBER]';
+  const hasReg      = entityType !== 'attorneys' || getRadio('attHasReg') === 'yes';
+  const reg         = hasReg ? (getVal('regNumber') || '[REGISTRATION NUMBER]') : '';
+  const regLine     = reg ? `<div class="co-reg">(Registration Number ${reg})</div>` : '';
+  const regLineItalic = reg ? `${regLineItalic}` : '';
   const yearEnd     = getVal('yearEnd')     || '[YEAR END]';
   const prevYearEnd = getVal('prevYearEnd') || '[PREVIOUS YEAR END]';
   const nature      = getVal('natureBusiness') || '[NATURE OF BUSINESS]';
@@ -2762,7 +2795,7 @@ function generateDoc() {
   <div class="cover-page">
     <div class="cover-title-block">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
       <div class="cover-year">ANNUAL FINANCIAL STATEMENTS</div>
       <div class="cover-subtitle">For the year ended ${yearEnd}</div>
     </div>
@@ -2774,10 +2807,10 @@ function generateDoc() {
         <td>Country of Incorporation and Domicile</td>
         <td>South Africa</td>
       </tr>
-      <tr>
+      ${reg ? `<tr>
         <td>Registration Number</td>
         <td>${reg}</td>
-      </tr>
+      </tr>` : ''}
       <tr>
         <td>Nature of Business and Principal Activities</td>
         <td>${nature}</td>
@@ -2827,7 +2860,7 @@ function generateDoc() {
     ${caLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>The Chartered Accountant's (South Africa) Declaration</h2>
     <p>The following annual financial statements of ${co}, as presented on pages ${pageStart} to ${pageEnd}, have been independently compiled by a Chartered Accountant (South Africa) [CA(SA)]. Refer to compilation report on page ${pg3}.</p>
@@ -2852,7 +2885,7 @@ function generateDoc() {
   <div class="doc-page">
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>${pluralTerm}' Responsibilities and Approval</h2>
     <p>${bodyTerm} ${dirSingularPlural.isAre} required in terms of the ${terms.act}, to maintain adequate accounting records and ${dirSingularPlural.isAre} responsible for the content and integrity of the financial statements and related financial information included in this report. It is ${pronoun} responsibility to ensure that the financial statements fairly present the state of affairs of the entity as at the end of the financial year and the results of its operations and cash flows for the period then ended, in conformity with International Financial Reporting Standards for Small and Medium-sized Entities and the requirements of the Companies Act of South Africa.</p>
@@ -2897,11 +2930,11 @@ function generateDoc() {
     ${caLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>Independent Compiler's Report</h2>
     <p><em>To the ${terms.report_to} of ${co}</em></p>
-    <p><em>(Registration Number ${reg})</em></p>
+    ${regLineItalic}
     <h3>Report on the Financial Statements</h3>
     <p>We have compiled the annual financial statements of ${co} based on information the entity provided. These financial statements are presented in accordance with the financial framework described in the accounting policy in these financial statements. The financial statements comprise of the statement of financial position as at ${yearEnd} and the statement of profit or loss and other comprehensive income, statement of changes in equity and statement of cash flows for the year then ended, and a summary of significant accounting policies and other explanatory information, and the ${pluralTerm.toLowerCase()}' report, as set out on pages ${pageStart} to ${pageEnd}.</p>
     <h3>${pluralTerm}' Responsibility for the Financial Statements</h3>
@@ -2921,7 +2954,7 @@ function generateDoc() {
   <div class="doc-page">
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>${pluralTerm}' Report</h2>
     <p>${bodyTerm} ${dirCount === 1 ? 'has' : 'have'} pleasure in presenting ${pronoun} report for the year ended ${yearEnd}.</p>
@@ -2982,7 +3015,7 @@ function generateDoc() {
     return `
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>NOTES FOR THE YEAR ENDED ${yearEnd.toUpperCase()}${isContinued ? ' — CONTINUED' : ''}</h2>`;
   }
@@ -3098,11 +3131,11 @@ function generateDoc() {
     ${caLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>Independent Reviewer's Report</h2>
     <p><em>To the ${terms.report_to} of ${co}</em></p>
-    <p><em>(Registration Number ${reg})</em></p>
+    ${regLineItalic}
     <p>We have reviewed the financial statements of ${co} set out on pages ${pageStart} to ${pageEnd}, which comprise the statement of financial position as at ${yearEnd} and the statement of profit or loss and other comprehensive income and statement of cash flows for the year then ended, and notes to the financial statements, including a summary of significant accounting policies.</p>
     <h3>${pluralTerm}' Responsibility for the Financial Statements</h3>
     <p>The ${pluralTerm.toLowerCase()} ${dirSingularPlural.isAre} responsible for the preparation and fair representation of these financial statements in accordance with the <em>'International Financial Reporting Standards for Small and Medium-sized Entities'</em> and the requirements of the Companies Act of South Africa, for determining that the basis of preparation is acceptable in the circumstances and for such internal control as the ${pluralTerm.toLowerCase()} determine ${dirSingularPlural.isAre} necessary to enable the preparation of financial statements that are free from material misstatements, whether due to fraud or error.</p>
@@ -3151,11 +3184,11 @@ function generateDoc() {
     ${auditLetterhead()}
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2>Independent Auditor's Report</h2>
     <p><em>To the ${terms.report_to} of ${co}</em></p>
-    <p><em>(Registration Number ${reg})</em></p>
+    ${regLineItalic}
     <h3>Opinion</h3>
     <p>We have audited the financial statements of ${co} set out on pages ${pageStart} to ${pageEnd}, which comprise the statement of financial position as at ${yearEnd}, and the statement of profit or loss and other comprehensive income, statement of changes in equity and statement of cash flows for the year then ended, and notes to the financial statements, including a summary of significant accounting policies.</p>
     <p>In our opinion, the financial statements present fairly, in all material respects, the financial position of ${co} as at ${yearEnd}, and its financial performance and cash flows for the year then ended in accordance with the <em>'International Financial Reporting Standard for Small and Medium-sized Entities'</em> and the requirements of the Companies Act of South Africa.</p>
@@ -3897,7 +3930,7 @@ function generateDoc() {
   <div class="doc-page">
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF MEMBERS OF THE ENTITY<br>HELD AT ${ccVenue} ON ${ccDate}.</h2>
     <br>
@@ -3931,7 +3964,7 @@ function generateDoc() {
   <div class="doc-page">
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF DIRECTORS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDate}.</h2>
     <br>
@@ -3978,7 +4011,7 @@ function generateDoc() {
   <div class="doc-page">
     <div class="page-header">
       <div class="co-name">${coUpper}</div>
-      <div class="co-reg">(Registration Number ${reg})</div>
+      ${regLine}
     </div>
     <h2 style="text-align:center;letter-spacing:0.06em;">MINUTES OF THE ANNUAL GENERAL MEETING OF SHAREHOLDERS OF THE COMPANY<br>HELD AT ${mVenue} ON ${mDate}.</h2>
     <br>
@@ -3999,9 +4032,9 @@ function generateDoc() {
     minutesPages = pageDirMinutes + pageShAGM;
   }
 
-  // ── MANAGEMENT REPRESENTATION LETTER (all except school) ──
+  // ── MANAGEMENT REPRESENTATION LETTER (all except school and attorneys) ──
   let reprLetter = '';
-  if (entityType !== 'school') {
+  if (entityType !== 'school' && entityType !== 'attorneys') {
     // Adapt terminology per entity type
     const reprEntityLabel = entityType === 'cc'    ? 'close corporation'
                           : entityType === 'trust'  ? 'trust'
@@ -4140,8 +4173,8 @@ function generateDoc() {
   let assembledPages = '';
 
   if (entityType === 'attorneys') {
-    // Attorneys: Cover + Attorneys Trust Account Report + Engagement Letter + Repr Letter
-    assembledPages = coverPage + pageAttorneysAudit + engagementLetterPages + reprLetter;
+    // Attorneys: Cover + Attorneys Trust Account Report + Engagement Letter (no repr letter, no policies)
+    assembledPages = coverPage + pageAttorneysAudit + engagementLetterPages;
   } else if (entityType === 'trust') {
     // Trust: Cover + CA Declaration + Compiler's Report + Minutes + Policies + Loan Certs + Engagement Letters + Repr Letter
     assembledPages = coverPage + page1 + page3 + pageTrustMinutes + policyPages + loanCertPages + engagementLetterPages + reprLetter;
