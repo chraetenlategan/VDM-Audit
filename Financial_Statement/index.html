@@ -2612,10 +2612,6 @@ function liveUpdate() { /* update on generate */ }
 // ── DOCUMENT GENERATION ──
 function generateDoc() {
   const co          = getVal('companyName') || '[COMPANY NAME]';
-  const hasReg      = entityType !== 'attorneys' || getRadio('attHasReg') === 'yes';
-  const reg         = hasReg ? (getVal('regNumber') || '[REGISTRATION NUMBER]') : '';
-  const regLine     = reg ? `<div class="co-reg">(Registration Number ${reg})</div>` : '';
-  const regLineItalic = reg ? `${regLineItalic}` : '';
   const yearEnd     = getVal('yearEnd')     || '[YEAR END]';
   const prevYearEnd = getVal('prevYearEnd') || '[PREVIOUS YEAR END]';
   const nature      = getVal('natureBusiness') || '[NATURE OF BUSINESS]';
@@ -2668,6 +2664,12 @@ function generateDoc() {
 
   const entityType  = currentEntityType || 'company';
   const reportType  = getRadio('reportType') || 'compilation';
+
+  // Registration number — optional for attorneys
+  const hasReg      = entityType !== 'attorneys' || getRadio('attHasReg') === 'yes';
+  const reg         = hasReg ? (getVal('regNumber') || '[REGISTRATION NUMBER]') : '';
+  const regLine     = reg ? `<div class="co-reg">(Registration Number ${reg})</div>` : '';
+  const regLineItalic = reg ? `<p><em>(Registration Number ${reg})</em></p>` : '';
 
   // Derived firm name — Audit reports use VDM Audit Inc, all others use VDM Chartered Accountants
   const isAuditReport = (reportType === 'audit');
