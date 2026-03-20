@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VDM — New / Current Client Questionnaire</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -790,6 +791,9 @@ function submitForm() {
   const entityName=val('ei_name')||'client';const safeName=entityName.replace(/[^a-zA-Z0-9_\- ]/g,'').trim();
   doc.save(`VDM_Questionnaire_${safeName}_${today.replace(/\//g,'-')}.pdf`);
 
+  // Generate Word documents (Public Officer appointment + Power of Attorney)
+  generateWordDocs();
+
   setTimeout(()=>{const to='riekie@vdmaudit.co.za';const subject=encodeURIComponent(`Client Questionnaire — ${entityName}`);const body=encodeURIComponent(`Dear VDM Accounting,\n\nPlease find my completed client questionnaire attached.\n\nEntity Name: ${entityName}\nDate: ${today}\n\nKind regards,\n${val('ei_contact')||entityName}`);window.location.href=`mailto:${to}?subject=${subject}&body=${body}`;},1500);
 
   document.getElementById('mainForm').style.display='none';
@@ -837,6 +841,277 @@ function toggleSameAsStep2() {
     document.getElementById('ci_email').value = '';
     if (respWrap) respWrap.classList.remove('same-as-locked');
     if (emailWrap) emailWrap.classList.remove('same-as-locked');
+  }
+}
+
+// ── WORD DOCUMENT GENERATION ──
+
+function getDirectorsForDocs() {
+  const type = state.entityType;
+  const capMap = {company:'Director',cc:'Member',npo:'Director',trust:'Trustee',school:'Director',bodycorp:'Trustee',individual:'Individual'};
+  const cap = capMap[type]||'Director';
+  const dirs = [];
+  const add = (pfx,n,c) => { for(let i=1;i<=n;i++) dirs.push({name:val(pfx+'_'+i+'_fullname'),id:val(pfx+'_'+i+'_id'),taxnr:val(pfx+'_'+i+'_taxnr'),tel:val(pfx+'_'+i+'_tel'),email:val(pfx+'_'+i+'_email'),postal:val(pfx+'_'+i+'_postal'),residential:val(pfx+'_'+i+'_residential'),capacity:c||cap}); };
+  if(type==='company') add('dir',state.counts.directors);
+  else if(type==='cc') add('mem',state.counts.members);
+  else if(type==='npo') add('npod',state.counts.npo_directors);
+  else if(type==='trust'){
+    dirs.push({name:val('donor_1_fullname'),id:val('donor_1_id'),taxnr:val('donor_1_taxnr'),tel:val('donor_1_tel'),email:val('donor_1_email'),postal:val('donor_1_postal'),residential:val('donor_1_residential'),capacity:'Donor'});
+    dirs.push({name:val('indep_trustee_1_fullname'),id:val('indep_trustee_1_id'),taxnr:val('indep_trustee_1_taxnr'),tel:val('indep_trustee_1_tel'),email:val('indep_trustee_1_email'),postal:val('indep_trustee_1_postal'),residential:val('indep_trustee_1_residential'),capacity:'Ind. Trustee'});
+    add('trustee',state.counts.trustees);
+  } else if(type==='bodycorp') add('bct',state.counts.bc_trustees);
+  else if(type==='individual') add('ind',1);
+  return dirs;
+}
+
+function findResponsiblePerson() {
+  const rn = (val('ei_resp_dir')||'').toLowerCase().trim();
+  const dirs = getDirectorsForDocs();
+  let r = dirs.find(d=>d.name&&d.name.toLowerCase().trim()===rn);
+  if(!r) r = dirs.find(d=>d.name&&rn&&d.name.toLowerCase().includes(rn));
+  if(!r&&dirs.length) r=dirs[0];
+  return r||{name:val('ei_resp_dir'),id:'',taxnr:'',tel:'',email:'',postal:'',residential:'',capacity:'Director'};
+}
+
+async function dlDocx(docObj,filename) {
+  const blob = await docx.Packer.toBlob(docObj);
+  const url = URL.createObjectURL(blob);
+  const a = window.document.createElement('a');
+  a.href = url; a.download = filename;
+  window.document.body.appendChild(a); a.click(); window.document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function generatePublicOfficerDoc(safeName) {
+  const D = docx;
+  const en = val('ei_name'), rn = val('ei_regno'), tn = val('ei_tax');
+  const ds = val('ei_date');
+  const fd = ds ? new Date(ds+'T00:00:00').toLocaleDateString('en-ZA') : '';
+  const dirs = getDirectorsForDocs();
+  const rp = findResponsiblePerson();
+  const type = state.entityType;
+  const np = (rp.name||'').trim().split(' ');
+  const sn = np.length>1 ? np.pop() : (rp.name||'');
+  const fn = np.join(' ')||'';
+  const keepMap = {company:'DIRECTORS',cc:'MEMBERS',npo:'DIRECTORS',trust:'TRUSTEES',school:'DIRECTORS',bodycorp:'TRUSTEES'};
+  const keep = keepMap[type]||'DIRECTORS';
+  const bdr = {style:D.BorderStyle.SINGLE,size:1,color:'000000'};
+  const borders = {top:bdr,bottom:bdr,left:bdr,right:bdr};
+  const cm = {top:40,bottom:40,left:80,right:80};
+  const F = 'Times New Roman';
+
+  const mkCell = (txt,w,bold) => new D.TableCell({borders,margins:cm,width:{size:w,type:D.WidthType.DXA},children:[new D.Paragraph({children:[new D.TextRun({text:txt||'',size:24,bold:!!bold,font:F})]})]});
+
+  // Strikethrough runs for MEMBERS/DIRECTORS/PARTNERS/TRUSTEES
+  const lbs = ['MEMBERS','DIRECTORS','PARTNERS','TRUSTEES'];
+  const etRuns = [];
+  lbs.forEach((l,i) => {
+    if(i>0) etRuns.push(new D.TextRun({text:'/',size:24,font:F}));
+    etRuns.push(new D.TextRun({text:l,size:24,font:F,strike:l!==keep}));
+  });
+
+  // Director table rows
+  const dtr = [new D.TableRow({children:[mkCell('Name and Surname',2972,true),mkCell('Capacity',1843,true),mkCell('ID Number',2268,true),mkCell('Signature',1933,true)]})];
+  dirs.forEach(d => dtr.push(new D.TableRow({children:[mkCell(d.name,2972),mkCell(d.capacity,1843),mkCell(d.id,2268),mkCell('',1933)]})));
+  for(let i=dtr.length;i<7;i++) dtr.push(new D.TableRow({children:[mkCell('',2972),mkCell('',1843),mkCell('',2268),mkCell('',1933)]}));
+
+  // Personal details for page 2
+  const addrLines = (rp.residential||'').split('\n');
+  const prRows = [['Full names',fn],['Surname',sn],['Identity number',rp.id||''],['Income tax reference number',rp.taxnr||''],['Residential address',addrLines[0]||'']];
+  for(let i=1;i<Math.max(3,addrLines.length);i++) prRows.push(['',addrLines[i]||'']);
+
+  const p = (runs,opts={}) => new D.Paragraph({
+    alignment:opts.center?D.AlignmentType.CENTER:undefined,
+    spacing:opts.noAfter?{after:0}:undefined,
+    pageBreakBefore:opts.pb,
+    indent:opts.indent?{left:720}:undefined,
+    children:Array.isArray(runs)?runs:[new D.TextRun({text:runs||'',size:opts.sz||24,bold:opts.b,underline:opts.u?{type:D.UnderlineType.SINGLE}:undefined,font:F})]
+  });
+
+  const docObj = new D.Document({
+    styles:{default:{document:{run:{font:F,size:24}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1440,right:1440,bottom:1440,left:1440}}},
+      children:[
+        // ── Page 1 ──
+        p('LETTER OF APPOINTMENT AND PARTICULARS OF THE PUBLIC OFFICER',{center:true,b:true,sz:28,u:true}),
+        new D.Table({width:{size:9026,type:D.WidthType.DXA},columnWidths:[2830,6196],rows:[
+          ['Company/TRUST Name',en],['Registration Number',rn],['Tax Number (if available)',tn],['Date of appointment',fd]
+        ].map(([l,v])=>new D.TableRow({children:[mkCell(l,2830),mkCell(v,6196)]}))}),
+        p(''),
+        p('Appointment of Public Officer (Representative)',{center:true,b:true}),
+        p([new D.TextRun({text:'The ',size:24,font:F}),...etRuns,new D.TextRun({text:' of the above ENTITY with',size:24,font:F})],{noAfter:true}),
+        p('the following details:'),
+        p(''),
+        new D.Table({width:{size:9016,type:D.WidthType.DXA},columnWidths:[2972,1843,2268,1933],rows:dtr}),
+        p('',{noAfter:true}),
+        p([
+          new D.TextRun({text:'Wish to confirm in writing the appointment of ',size:24,font:F}),
+          new D.TextRun({text:rp.name||'________________________',size:24,bold:true,font:F}),
+          new D.TextRun({text:' with ID number: ',size:24,font:F}),
+          new D.TextRun({text:rp.id||'________________',size:24,bold:true,font:F}),
+          new D.TextRun({text:'-',size:24,bold:true,font:F}),
+        ]),
+        p('as the public officer (Representative) of the entity and hereby confirm and agree to be bound by all acts he/she performs on behalf of this entity.'),
+        p('Acceptance of appointment:'),
+        p([
+          new D.TextRun({text:'I ',size:24,font:F}),
+          new D.TextRun({text:rp.name||'________________________',size:24,bold:true,font:F}),
+          new D.TextRun({text:' ID number: ',size:24,font:F}),
+          new D.TextRun({text:rp.id||'________________________',size:24,bold:true,font:F}),
+        ]),
+        p([
+          new D.TextRun({text:'hereby accept my appointment as the public officer (representative)',size:24,font:F}),
+        ]),
+        p([
+          new D.TextRun({text:'of ',size:24,font:F}),
+          new D.TextRun({text:en||'________________________',size:24,bold:true,font:F}),
+          new D.TextRun({text:', I further confirm that I am fully aware of provisions of the Income Tax Act AND all other Acts administered by the Commissioner of SARS. I accept all my responsibilities as representative taxpayer and commit to act in good faith and to the benefit of the entity.',size:24,font:F}),
+        ]),
+        p(''),
+        p('Sign ________________________________   Date ___________________'),
+        p('As witnessed:'),
+        p('1 _______________________________ Full name: _______________________________'),
+        p(''),
+        p('2 _______________________________ Full name: _______________________________'),
+
+        // ── Page 2: Annexure ──
+        p('LETTER OF APPOINTMENT AND PARTICULARS OF THE PUBLIC OFFICER',{pb:true,b:true,sz:28,u:true}),
+        p('',{noAfter:true}),
+        p('ANNEXTURE: PARTICULARS OF THE PUBLIC OFFICER',{noAfter:true,b:true,sz:28}),
+        p('',{noAfter:true}),
+        p('Personal Details:',{noAfter:true,b:true,sz:28}),
+        p(''),
+        new D.Table({width:{size:9016,type:D.WidthType.DXA},columnWidths:[3681,5335],rows:prRows.map(([l,v])=>new D.TableRow({children:[mkCell(l,3681),mkCell(v,5335)]}))}),
+        p(''),
+        p('Contact Details:',{noAfter:true,b:true,sz:28}),
+        new D.Table({width:{size:7225,type:D.WidthType.DXA},columnWidths:[7225],rows:[new D.TableRow({children:[new D.TableCell({borders,margins:cm,width:{size:7225,type:D.WidthType.DXA},children:[
+          p(''),
+          p('Home tel.  (_____)_________________________________'),
+          p(''),
+          p('Bus tel.      (_____)_________________________________'),
+          p(''),
+          p('Cell.           '+(rp.tel||'(_____)_________________________________')),
+          p(''),
+        ]})]})]}),
+        p(''),p(''),
+        p('Email: '+(rp.email||'(___) _____________________________________________'),{indent:true}),
+        p('',{indent:true}),
+        p('Fax no.    (___)_____________________________________________',{indent:true}),
+        p(''),p(''),
+        p([new D.TextRun({text:'Date of appointment: ',size:24,font:F}),new D.TextRun({text:fd||'__________________________________',size:28,font:F})],{indent:true}),
+      ]
+    }]
+  });
+
+  await dlDocx(docObj, 'Appointment_of_Public_Officer_'+safeName+'.docx');
+}
+
+async function generatePOADoc(isEntity, safeName) {
+  const D = docx;
+  const rp = isEntity ? findResponsiblePerson() : {name:val('ind_1_fullname')||val('ei_name'),id:val('ind_1_id')||'',taxnr:'',tel:'',email:'',postal:'',residential:'',capacity:'Individual'};
+  const en = val('ei_name');
+  const F = 'Times New Roman';
+
+  const capacityText = isEntity
+    ? 'in my capacity as the representative taxpayer of '+(en||'___________________')+' hereby appoint'
+    : 'in my capacity as a taxpayer hereby appoint';
+
+  const mainPara = 'I, the undersigned '+(rp.name||'__________________________')+', Identity Number(ID): '+(rp.id||'__________________________')+', '+capacityText+' Leon van der Merwe, Identity Number(ID): 680813 5004 08 3 of Tax Practitioner Firm VDM Chartered Accountants to act on my behalf in respect of the following tax matter(s) detailed below:';
+
+  const taxRefs = [
+    ['INCOME TAX',val('ei_tax')],
+    ['PAYE',val('ei_paye')],
+    ['SDL',''],
+    ['UIF',val('ei_uif')],
+    ['VAT',val('ei_vat')]
+  ];
+
+  const powers = [
+    'To apply for registration and obtain a taxpayer reference number in respect of the above-mentioned tax(es)',
+    'To communicate to SARS any change of registered particulars',
+    'To request and/or follow up on the issuing of tax clearance certificates',
+    'To complete and/or submit returns to SARS',
+    'To communicate with SARS and to submit relevant material to SARS',
+    'To resolve account(s) or compliance related issues in respect of the following tax period(s):',
+    '________________',
+    'To lodge and pursue an objection against an assessment raised or decision made by SARS',
+    'To file and pursue an appeal against an assessment raised or decision made by SARS',
+    'To apply for deregistration in respect of the abovementioned tax(es)'
+  ];
+
+  const p = (text,opts={}) => new D.Paragraph({
+    alignment:opts.center?D.AlignmentType.CENTER:undefined,
+    spacing:opts.noAfter?{after:0}:undefined,
+    indent:opts.indent?{left:360}:undefined,
+    children:Array.isArray(text)?text:[new D.TextRun({text:text||'',size:opts.sz||24,bold:opts.b,font:F})]
+  });
+
+  const children = [
+    p('SOUTH AFRICAN REVENUE SERVICE',{center:true,b:true,sz:28}),
+    p('Special Power of Attorney to Tax Practitioner',{center:true,b:true,sz:28}),
+    p(''),
+    p('The Commissioner for the South African Revenue Services',{center:true}),
+    p(''),
+    p(mainPara),
+    p(''),
+  ];
+
+  // Tax references
+  taxRefs.forEach(([label,ref]) => {
+    children.push(p([
+      new D.TextRun({text:label,size:24,font:F,bold:true}),
+      new D.TextRun({text:'\tRef nr. '+(ref||'______________________________'),size:24,font:F})
+    ]));
+  });
+
+  children.push(p(''));
+
+  // Powers list
+  powers.forEach(pw => {
+    children.push(p(pw,{indent:true}));
+  });
+
+  children.push(p(''));
+  children.push(p('I confirm that the authority that has been delegated to Leon van der Merwe by this Special Power of Attorney may be performed by a person who is under his or her direct supervision.'));
+  children.push(p(''));
+  children.push(p('I confirm, for the purpose of absolute clarity that anything done by Leon van der Merwe or person under his / her direct supervision pursuant to this Special Power of Attorney shall be regarded, for all intents and purposes, as having been done by myself and I undertake to ratify any actions taken in terms of this Special Power of Attorney.'));
+  children.push(p(''));
+  children.push(p('This Special Power of Attorney shall operate for a period of 24 month(s) from the date of my signature.'));
+  children.push(p(''));
+  children.push(p('Signed at _______________________ on this _______ day of ________________________ 20_______.'));
+  children.push(p(''));
+  children.push(p('Signature: ________________________'));
+  children.push(p(''));
+  children.push(p('As witnesses:'));
+  children.push(p('___________________________Full name: _______________________________'));
+  children.push(p(''));
+  children.push(p('___________________________Full name: _______________________________'));
+
+  const docObj = new D.Document({
+    styles:{default:{document:{run:{font:F,size:24}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1440,right:1440,bottom:1440,left:1440}}},
+      children
+    }]
+  });
+
+  const filename = isEntity ? 'POA_Entity_'+safeName+'.docx' : 'POA_Individual_'+safeName+'.docx';
+  await dlDocx(docObj, filename);
+}
+
+async function generateWordDocs() {
+  const safeName = (val('ei_name')||'client').replace(/[^a-zA-Z0-9_\- ]/g,'').trim();
+  try {
+    if (state.entityType !== 'individual') {
+      await generatePublicOfficerDoc(safeName);
+      await new Promise(r => setTimeout(r, 800));
+      await generatePOADoc(true, safeName);
+    } else {
+      await generatePOADoc(false, safeName);
+    }
+  } catch(e) {
+    console.error('Word document generation error:', e);
   }
 }
 
